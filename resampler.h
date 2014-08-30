@@ -133,21 +133,21 @@ private:
     Status m_status;
 
     void resample_x(Sample* Pdst, const Sample* Psrc);
-    void scale_y_mov(Sample* Ptmp, const Sample* Psrc, Resample_Real weight, int dst_x);
-    void scale_y_add(Sample* Ptmp, const Sample* Psrc, Resample_Real weight, int dst_x);
-    void clamp(Sample* Pdst, int n);
+    static void scale_y_mov(Sample* Ptmp, const Sample* Psrc, Resample_Real weight, int dst_x);
+    static void scale_y_add(Sample* Ptmp, const Sample* Psrc, Resample_Real weight, int dst_x);
+    static void clamp(Sample* Pdst, int n, Resample_Real lo, Resample_Real hi);
     void resample_y(Sample* Pdst);
 
-    int reflect(const int j, const int src_x, const Boundary_Op boundary_op);
+    static int reflect(const int j, const int src_x, const Boundary_Op boundary_op);
 
-    Contrib_List* make_clist(
+    static Contrib_List* make_clist(
         int src_x, int dst_x, Boundary_Op boundary_op,
         Resample_Real (*Pfilter)(Resample_Real),
         Resample_Real filter_support,
         Resample_Real filter_scale,
         Resample_Real src_ofs);
 
-    inline int count_ops(Contrib_List* Pclist, int k)
+    static inline int count_ops(Contrib_List* Pclist, int k)
     {
         int i, t = 0;
         for (i = 0; i < k; i++)
@@ -158,12 +158,12 @@ private:
     Resample_Real m_lo;
     Resample_Real m_hi;
 
-    inline Resample_Real clamp_sample(Resample_Real f) const
+    static inline Resample_Real clamp_sample(Resample_Real f, Resample_Real lo, Resample_Real hi)
     {
-        if (f < m_lo)
-            f = m_lo;
-        else if (f > m_hi)
-            f = m_hi;
+        if (f < lo)
+            f = lo;
+        else if (f > hi)
+            f = hi;
         return f;
     }
 };

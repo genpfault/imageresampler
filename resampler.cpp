@@ -764,11 +764,11 @@ void Resampler::scale_y_add(Sample* Ptmp, const Sample* Psrc, Resample_Real weig
         (*Ptmp++) += *Psrc++ * weight;
 }
 
-void Resampler::clamp(Sample* Pdst, int n)
+void Resampler::clamp(Sample* Pdst, int n, Resample_Real lo, Resample_Real hi)
 {
     while (n > 0)
     {
-        *Pdst = clamp_sample(*Pdst);
+        *Pdst = clamp_sample(*Pdst, lo, hi);
         ++Pdst;
         n--;
     }
@@ -831,7 +831,7 @@ void Resampler::resample_y(Sample* Pdst)
     }
 
     if (m_lo < m_hi)
-        clamp(Pdst, m_resample_dst_x);
+        clamp(Pdst, m_resample_dst_x, m_lo, m_hi);
 }
 
 bool Resampler::put_line(const Sample* Psrc)
