@@ -416,26 +416,21 @@ Resampler::Contrib_List* Resampler::make_clist(
     Resample_Real filter_scale,
     Resample_Real src_ofs)
 {
-    typedef struct
+    struct Contrib_Bounds
     {
         // The center of the range in DISCRETE coordinates (pixel center = 0.0f).
         Resample_Real center;
         int left, right;
-    } Contrib_Bounds;
+    };
 
-    int i, j, k, n, left, right;
-    Resample_Real total_weight;
-    Resample_Real xscale, center, half_width, weight;
-    Contrib_List* Pcontrib;
-    Contrib* Pcpool;
-    Contrib* Pcpool_next;
-    Contrib_Bounds* Pcontrib_bounds;
-
-    if ((Pcontrib = (Contrib_List*)calloc(dst_x, sizeof(Contrib_List))) == NULL)
+    Contrib_List* Pcontrib = (Contrib_List*)calloc(dst_x, sizeof(Contrib_List));
+    if(!Pcontrib)
+    {
         return NULL;
+    }
 
-    Pcontrib_bounds = (Contrib_Bounds*)calloc(dst_x, sizeof(Contrib_Bounds));
-    if (!Pcontrib_bounds)
+    Contrib_Bounds* Pcontrib_bounds = (Contrib_Bounds*)calloc(dst_x, sizeof(Contrib_Bounds));
+    if(!Pcontrib_bounds)
     {
         free(Pcontrib);
         return (NULL);
@@ -444,218 +439,108 @@ Resampler::Contrib_List* Resampler::make_clist(
     const Resample_Real oo_filter_scale = 1.0f / filter_scale;
 
     const Resample_Real NUDGE = 0.5f;
-    xscale = dst_x / (Resample_Real)src_x;
+    const Resample_Real xscale = dst_x / (Resample_Real)src_x;
 
-    if (xscale < 1.0f)
+    const bool downsampling = ( xscale < 1.0f );
+
+    // stretched half width of filter
+    Resample_Real half_width = ( downsampling ? (filter_support / xscale) : filter_support ) * filter_scale;
+
+    // Find the source sample(s) that contribute to each destination sample.
+    int n = 0;
+    for(int i = 0; i < dst_x; i++)
     {
-        int total; (void)total;
+        // Convert from discrete to continuous coordinates, scale, then convert back to discrete.
+        Resample_Real center = ((Resample_Real)i + NUDGE) / xscale;
+        center -= NUDGE;
+        center += src_ofs;
 
-        // Handle case when there are fewer destination
-        // samples than source samples (downsampling/minification).
+        int left   = static_cast< int >((Resample_Real)floor(center - half_width));
+        int right  = static_cast< int >((Resample_Real)ceil(center + half_width));
 
-        // stretched half width of filter
-        half_width = (filter_support / xscale) * filter_scale;
+        Pcontrib_bounds[i].center = center;
+        Pcontrib_bounds[i].left		= left;
+        Pcontrib_bounds[i].right	= right;
 
-        // Find the range of source sample(s) that will contribute to each destination sample.
-
-        for (i = 0, n = 0; i < dst_x; i++)
-        {
-            // Convert from discrete to continuous coordinates, scale, then convert back to discrete.
-            center = ((Resample_Real)i + NUDGE) / xscale;
-            center -= NUDGE;
-            center += src_ofs;
-
-            left   = static_cast< int >((Resample_Real)floor(center - half_width));
-            right  = static_cast< int >((Resample_Real)ceil(center + half_width));
-
-            Pcontrib_bounds[i].center = center;
-            Pcontrib_bounds[i].left   = left;
-            Pcontrib_bounds[i].right  = right;
-
-            n += (right - left + 1);
-        }
-
-        // Allocate memory for contributors.
-
-        if ((n == 0) || ((Pcpool = (Contrib*)calloc(n, sizeof(Contrib))) == NULL))
-        {
-            free(Pcontrib);
-            free(Pcontrib_bounds);
-            return NULL;
-        }
-        total = n;
-
-        Pcpool_next = Pcpool;
-
-        // Create the list of source samples which
-        // contribute to each destination sample.
-
-        for (i = 0; i < dst_x; i++)
-        {
-            int max_k = -1;
-            Resample_Real max_w = -1e+20f;
-
-            center = Pcontrib_bounds[i].center;
-            left   = Pcontrib_bounds[i].left;
-            right  = Pcontrib_bounds[i].right;
-
-            Pcontrib[i].n = 0;
-            Pcontrib[i].p = Pcpool_next;
-            Pcpool_next += (right - left + 1);
-            resampler_assert ((Pcpool_next - Pcpool) <= total);
-
-            total_weight = 0;
-
-            for (j = left; j <= right; j++)
-                total_weight += (*Pfilter)((center - (Resample_Real)j) * xscale * oo_filter_scale);
-            const Resample_Real norm = static_cast<Resample_Real>(1.0f / total_weight);
-
-            total_weight = 0;
-
-            for (j = left; j <= right; j++)
-            {
-                weight = (*Pfilter)((center - (Resample_Real)j) * xscale * oo_filter_scale) * norm;
-                if (weight == 0.0f)
-                    continue;
-
-                n = reflect(j, src_x, boundary_op);
-
-                // Increment the number of source
-                // samples which contribute to the
-                // current destination sample.
-
-                k = Pcontrib[i].n++;
-
-                Pcontrib[i].p[k].pixel  = (unsigned short)(n);       // store src sample number
-                Pcontrib[i].p[k].weight = weight; // store src sample weight
-
-                total_weight += weight;          // total weight of all contributors
-
-                if (weight > max_w)
-                {
-                    max_w = weight;
-                    max_k = k;
-                }
-            }
-
-            //resampler_assert(Pcontrib[i].n);
-            //resampler_assert(max_k != -1);
-            if ((max_k == -1) || (Pcontrib[i].n == 0))
-            {
-                free(Pcpool);
-                free(Pcontrib);
-                free(Pcontrib_bounds);
-                return NULL;
-            }
-
-            if (total_weight != 1.0f)
-                Pcontrib[i].p[max_k].weight += 1.0f - total_weight;
-        }
+        n += (right - left + 1);
     }
-    else
+
+    // Allocate memory for contributors.
+    Contrib* Pcpool;
+    int total = n;
+    if((total == 0) || ((Pcpool = (Contrib*)calloc(total, sizeof(Contrib))) == NULL))
     {
-        // Handle case when there are more
-        // destination samples than source
-        // samples (upsampling).
+        free(Pcontrib);
+        free(Pcontrib_bounds);
+        return NULL;
+    }
 
-        half_width = filter_support * filter_scale;
+    Contrib* Pcpool_next = Pcpool;
 
-        // Find the source sample(s) that contribute to each destination sample.
+    // Create the list of source samples which contribute to each destination sample.
+    for(int i = 0; i < dst_x; i++)
+    {
+        Resample_Real center = Pcontrib_bounds[i].center;
+        int left   = Pcontrib_bounds[i].left;
+        int right  = Pcontrib_bounds[i].right;
 
-        for (i = 0, n = 0; i < dst_x; i++)
+        Pcontrib[i].n = 0;
+        Pcontrib[i].p = Pcpool_next;
+        Pcpool_next += (right - left + 1);
+        resampler_assert((Pcpool_next - Pcpool) <= total);
+
+        Resample_Real total_weight = 0;
+        for(int j = left; j <= right; j++)
         {
-            // Convert from discrete to continuous coordinates, scale, then convert back to discrete.
-            center = ((Resample_Real)i + NUDGE) / xscale;
-            center -= NUDGE;
-            center += src_ofs;
-
-            left   = static_cast< int >((Resample_Real)floor(center - half_width));
-            right  = static_cast< int >((Resample_Real)ceil(center + half_width));
-
-            Pcontrib_bounds[i].center = center;
-            Pcontrib_bounds[i].left   = left;
-            Pcontrib_bounds[i].right  = right;
-
-            n += (right - left + 1);
+            total_weight += (*Pfilter)((center - (Resample_Real)j) * oo_filter_scale * ( downsampling ? xscale : 1.0f ) );
         }
 
-        // Allocate memory for contributors.
+        const Resample_Real norm = static_cast<Resample_Real>(1.0f / total_weight);
 
-        int total = n;
-        if ((total == 0) || ((Pcpool = (Contrib*)calloc(total, sizeof(Contrib))) == NULL))
+        total_weight = 0;
+
+        int max_k = -1;
+        Resample_Real max_w = -1e+20f;
+        for(int j = left; j <= right; j++)
         {
+            Resample_Real weight = (*Pfilter)((center - (Resample_Real)j) * oo_filter_scale * ( downsampling ? xscale : 1.0f ) ) * norm;
+            if(weight == 0.0f)
+                continue;
+
+            int n = reflect(j, src_x, boundary_op);
+
+            // Increment the number of source
+            // samples which contribute to the
+            // current destination sample.
+
+            int k = Pcontrib[i].n++;
+
+            Pcontrib[i].p[k].pixel  = (unsigned short)(n);  // store src sample number
+            Pcontrib[i].p[k].weight = weight;               // store src sample weight
+
+            // total weight of all contributors
+            total_weight += weight;
+
+            if(weight > max_w)
+            {
+                max_w = weight;
+                max_k = k;
+            }
+        }
+
+        //resampler_assert(Pcontrib[i].n);
+        //resampler_assert(max_k != -1);
+
+        if((max_k == -1) || (Pcontrib[i].n == 0))
+        {
+            free(Pcpool);
             free(Pcontrib);
             free(Pcontrib_bounds);
             return NULL;
         }
 
-        Pcpool_next = Pcpool;
-
-        // Create the list of source samples which
-        // contribute to each destination sample.
-
-        for (i = 0; i < dst_x; i++)
-        {
-            int max_k = -1;
-            Resample_Real max_w = -1e+20f;
-
-            center = Pcontrib_bounds[i].center;
-            left   = Pcontrib_bounds[i].left;
-            right  = Pcontrib_bounds[i].right;
-
-            Pcontrib[i].n = 0;
-            Pcontrib[i].p = Pcpool_next;
-            Pcpool_next += (right - left + 1);
-            resampler_assert((Pcpool_next - Pcpool) <= total);
-
-            total_weight = 0;
-            for (j = left; j <= right; j++)
-                total_weight += (*Pfilter)((center - (Resample_Real)j) * oo_filter_scale);
-
-            const Resample_Real norm = static_cast<Resample_Real>(1.0f / total_weight);
-
-            total_weight = 0;
-
-            for (j = left; j <= right; j++)
-            {
-                weight = (*Pfilter)((center - (Resample_Real)j) * oo_filter_scale) * norm;
-                if (weight == 0.0f)
-                    continue;
-
-                n = reflect(j, src_x, boundary_op);
-
-                // Increment the number of source
-                // samples which contribute to the
-                // current destination sample.
-
-                k = Pcontrib[i].n++;
-
-                Pcontrib[i].p[k].pixel  = (unsigned short)(n);       // store src sample number
-                Pcontrib[i].p[k].weight = weight; // store src sample weight
-
-                total_weight += weight;          // total weight of all contributors
-
-                if (weight > max_w)
-                {
-                    max_w = weight;
-                    max_k = k;
-                }
-            }
-
-            //resampler_assert(Pcontrib[i].n);
-            //resampler_assert(max_k != -1);
-
-            if ((max_k == -1) || (Pcontrib[i].n == 0))
-            {
-                free(Pcpool);
-                free(Pcontrib);
-                free(Pcontrib_bounds);
-                return NULL;
-            }
-
-            if (total_weight != 1.0f)
-                Pcontrib[i].p[max_k].weight += 1.0f - total_weight;
-        }
+        if(total_weight != 1.0f)
+            Pcontrib[i].p[max_k].weight += 1.0f - total_weight;
     }
 
     free(Pcontrib_bounds);
