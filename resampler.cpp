@@ -163,10 +163,10 @@ static Resample_Real quadratic_mix_filter(Resample_Real t)
 // Computer Graphics, Vol. 22, No. 4, pp. 221-228.
 // (B, C)
 // (1/3, 1/3)  - Defaults recommended by Mitchell and Netravali
-// (1, 0)	   - Equivalent to the Cubic B-Spline
-// (0, 0.5)		- Equivalent to the Catmull-Rom Spline
-// (0, C)		- The family of Cardinal Cubic Splines
-// (B, 0)		- Duff's tensioned B-Splines.
+// (1, 0)      - Equivalent to the Cubic B-Spline
+// (0, 0.5)    - Equivalent to the Catmull-Rom Spline
+// (0, C)      - The family of Cardinal Cubic Splines
+// (B, 0)      - Duff's tensioned B-Splines.
 static Resample_Real mitchell(Resample_Real t, const Resample_Real B, const Resample_Real C)
 {
     Resample_Real tt;
@@ -229,7 +229,7 @@ static Resample_Real clean(double t)
 
 //static double blackman_window(double x)
 //{
-//	return .42f + .50f * cos(M_PI*x) + .08f * cos(2.0f*M_PI*x);
+//    return .42f + .50f * cos(M_PI*x) + .08f * cos(2.0f*M_PI*x);
 //}
 
 static double blackman_exact_window(double x)
@@ -365,22 +365,22 @@ static struct
     Resample_Real support;
 } g_filters[] =
 {
-    { "box",		            box_filter,			         BOX_FILTER_SUPPORT },
-    { "tent",			      tent_filter,		         TENT_FILTER_SUPPORT },
-    { "bell",			      bell_filter,	            BELL_SUPPORT },
-    { "b-spline",	         B_spline_filter,	         B_SPLINE_SUPPORT },
-    { "mitchell",	         mitchell_filter,	         MITCHELL_SUPPORT },
-    { "lanczos3",	         lanczos3_filter,	         LANCZOS3_SUPPORT },
-    { "blackman",	         blackman_filter,	         BLACKMAN_SUPPORT },
-    { "lanczos4",	         lanczos4_filter,	         LANCZOS4_SUPPORT },
-    { "lanczos6",	         lanczos6_filter,	         LANCZOS6_SUPPORT },
-    { "lanczos12",          lanczos12_filter,          LANCZOS12_SUPPORT },
-    { "kaiser",		         kaiser_filter,		         KAISER_SUPPORT },
-    { "gaussian",	         gaussian_filter,	         GAUSSIAN_SUPPORT },
-    { "catmullrom",         catmull_rom_filter,        CATMULL_ROM_SUPPORT },
-    { "quadratic_interp",   quadratic_interp_filter,   QUADRATIC_SUPPORT },
-    { "quadratic_approx",   quadratic_approx_filter,   QUADRATIC_SUPPORT },
-    { "quadratic_mix",      quadratic_mix_filter,      QUADRATIC_SUPPORT },
+    { "box",                box_filter,                 BOX_FILTER_SUPPORT  },
+    { "tent",               tent_filter,                TENT_FILTER_SUPPORT },
+    { "bell",               bell_filter,                BELL_SUPPORT        },
+    { "b-spline",           B_spline_filter,            B_SPLINE_SUPPORT    },
+    { "mitchell",           mitchell_filter,            MITCHELL_SUPPORT    },
+    { "lanczos3",           lanczos3_filter,            LANCZOS3_SUPPORT    },
+    { "blackman",           blackman_filter,            BLACKMAN_SUPPORT    },
+    { "lanczos4",           lanczos4_filter,            LANCZOS4_SUPPORT    },
+    { "lanczos6",           lanczos6_filter,            LANCZOS6_SUPPORT    },
+    { "lanczos12",          lanczos12_filter,           LANCZOS12_SUPPORT   },
+    { "kaiser",             kaiser_filter,              KAISER_SUPPORT      },
+    { "gaussian",           gaussian_filter,            GAUSSIAN_SUPPORT    },
+    { "catmullrom",         catmull_rom_filter,         CATMULL_ROM_SUPPORT },
+    { "quadratic_interp",   quadratic_interp_filter,    QUADRATIC_SUPPORT   },
+    { "quadratic_approx",   quadratic_approx_filter,    QUADRATIC_SUPPORT   },
+    { "quadratic_mix",      quadratic_mix_filter,       QUADRATIC_SUPPORT   },
 };
 
 static const int NUM_FILTERS = sizeof(g_filters) / sizeof(g_filters[0]);
@@ -489,8 +489,8 @@ Resampler::Contrib_List* Resampler::make_clist(
             right  = cast_to_int((Resample_Real)ceil(center + half_width));
 
             Pcontrib_bounds[i].center = center;
-            Pcontrib_bounds[i].left		= left;
-            Pcontrib_bounds[i].right	= right;
+            Pcontrib_bounds[i].left   = left;
+            Pcontrib_bounds[i].right  = right;
 
             n += (right - left + 1);
         }
@@ -596,8 +596,8 @@ Resampler::Contrib_List* Resampler::make_clist(
             right  = cast_to_int((Resample_Real)ceil(center + half_width));
 
             Pcontrib_bounds[i].center = center;
-            Pcontrib_bounds[i].left		= left;
-            Pcontrib_bounds[i].right	= right;
+            Pcontrib_bounds[i].left   = left;
+            Pcontrib_bounds[i].right  = right;
 
             n += (right - left + 1);
         }

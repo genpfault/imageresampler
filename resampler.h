@@ -76,8 +76,8 @@ public:
 
     // Returned contributor lists can be shared with another Resampler.
     void get_clists(Contrib_List** ptr_clist_x, Contrib_List** ptr_clist_y);
-    Contrib_List* get_clist_x() const {	return m_Pclist_x; }
-    Contrib_List* get_clist_y() const {	return m_Pclist_y; }
+    Contrib_List* get_clist_x() const { return m_Pclist_x; }
+    Contrib_List* get_clist_y() const { return m_Pclist_y; }
 
     // Filter accessors.
     static int get_filter_num();
