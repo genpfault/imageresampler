@@ -1,7 +1,7 @@
 // resampler.h, Separable filtering image rescaler v2.21, Rich Geldreich - richgel99@gmail.com
 // See unlicense.org text at the bottom of this file.
-#ifndef __RESAMPLER_H__
-#define __RESAMPLER_H__
+#ifndef RESAMPLER_H
+#define RESAMPLER_H
 
 #define RESAMPLER_DEFAULT_FILTER "lanczos4"
 
@@ -165,7 +165,7 @@ private:
     }
 };
 
-#endif // __RESAMPLER_H__
+#endif // RESAMPLER_H
 
 // This is free and unencumbered software released into the public domain.
 //

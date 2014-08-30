@@ -15,12 +15,10 @@
 #include <cstring>
 #include "resampler.h"
 
-#define resampler_assert assert
-
 static inline int resampler_range_check( int v, int h )
 {
     ( void ) h;
-    resampler_assert( ( v >= 0 ) && ( v < h ) );
+    assert( ( v >= 0 ) && ( v < h ) );
     return v;
 }
 
@@ -342,7 +340,7 @@ static Resample_Real kaiser_filter( Resample_Real t )
 // filters[] is a list of all the available filter functions.
 static struct
 {
-    char name[32];
+    char name[ 32 ];
     Resample_Real ( *func )( Resample_Real t );
     Resample_Real support;
 } g_filters[] =
@@ -365,7 +363,7 @@ static struct
     { "quadratic_mix",      quadratic_mix_filter,       QUADRATIC_SUPPORT   },
 };
 
-static const int NUM_FILTERS = sizeof ( g_filters ) / sizeof ( g_filters[0] );
+static const int NUM_FILTERS = sizeof ( g_filters ) / sizeof ( g_filters[ 0 ] );
 
 // Ensure that the contributing source sample is
 // within bounds. If not, reflect, clamp, or wrap.
@@ -461,9 +459,9 @@ Resampler::Contrib_List* Resampler::make_clist
         int left  = static_cast< int > ( ( Resample_Real ) floor( center - half_width ) );
         int right = static_cast< int > ( ( Resample_Real ) ceil( center + half_width ) );
 
-        Pcontrib_bounds[i].center = center;
-        Pcontrib_bounds[i].left   = left;
-        Pcontrib_bounds[i].right  = right;
+        Pcontrib_bounds[ i ].center = center;
+        Pcontrib_bounds[ i ].left   = left;
+        Pcontrib_bounds[ i ].right  = right;
 
         n += ( right - left + 1 );
     }
@@ -483,14 +481,14 @@ Resampler::Contrib_List* Resampler::make_clist
     // Create the list of source samples which contribute to each destination sample.
     for( int i = 0; i < dst_x; i++ )
     {
-        Resample_Real center = Pcontrib_bounds[i].center;
-        int left   = Pcontrib_bounds[i].left;
-        int right  = Pcontrib_bounds[i].right;
+        Resample_Real center = Pcontrib_bounds[ i ].center;
+        int left   = Pcontrib_bounds[ i ].left;
+        int right  = Pcontrib_bounds[ i ].right;
 
-        Pcontrib[i].n = 0;
-        Pcontrib[i].p = Pcpool_next;
+        Pcontrib[ i ].n = 0;
+        Pcontrib[ i ].p = Pcpool_next;
         Pcpool_next += ( right - left + 1 );
-        resampler_assert( ( Pcpool_next - Pcpool ) <= total );
+        assert( ( Pcpool_next - Pcpool ) <= total );
 
         Resample_Real total_weight = 0;
         for( int j = left; j <= right; j++ )
@@ -516,10 +514,10 @@ Resampler::Contrib_List* Resampler::make_clist
             // samples which contribute to the
             // current destination sample.
 
-            int k = Pcontrib[i].n++;
+            int k = Pcontrib[ i ].n++;
 
-            Pcontrib[i].p[k].pixel  = ( unsigned short ) ( n ); // store src sample number
-            Pcontrib[i].p[k].weight = weight;               // store src sample weight
+            Pcontrib[ i ].p[ k ].pixel  = ( unsigned short ) ( n ); // store src sample number
+            Pcontrib[ i ].p[ k ].weight = weight;               // store src sample weight
 
             // total weight of all contributors
             total_weight += weight;
@@ -531,10 +529,10 @@ Resampler::Contrib_List* Resampler::make_clist
             }
         }
 
-        //resampler_assert(Pcontrib[i].n);
-        //resampler_assert(max_k != -1);
+        //assert(Pcontrib[ i ].n);
+        //assert(max_k != -1);
 
-        if( ( max_k == -1 ) || ( Pcontrib[i].n == 0 ) )
+        if( ( max_k == -1 ) || ( Pcontrib[ i ].n == 0 ) )
         {
             free( Pcpool );
             free( Pcontrib );
@@ -543,7 +541,7 @@ Resampler::Contrib_List* Resampler::make_clist
         }
 
         if( total_weight != 1.0f )
-            Pcontrib[i].p[max_k].weight += 1.0f - total_weight;
+            Pcontrib[ i ].p[ max_k ].weight += 1.0f - total_weight;
     }
 
     free( Pcontrib_bounds );
@@ -553,8 +551,8 @@ Resampler::Contrib_List* Resampler::make_clist
 
 void Resampler::resample_x( Sample* Pdst, const Sample* Psrc )
 {
-    resampler_assert( Pdst );
-    resampler_assert( Psrc );
+    assert( Pdst );
+    assert( Psrc );
 
     Contrib_List *Pclist = m_Pclist_x;
 
@@ -565,7 +563,7 @@ void Resampler::resample_x( Sample* Pdst, const Sample* Psrc )
         Contrib *p = Pclist->p;
         for(; j > 0; j--, p++ )
         {
-            total += Psrc[p->pixel] * p->weight;
+            total += Psrc[ p->pixel ] * p->weight;
         }
 
         *Pdst++ = total;
@@ -597,10 +595,10 @@ void Resampler::clamp( Sample* Pdst, int n, Resample_Real lo, Resample_Real hi )
 
 void Resampler::resample_y( Sample* Pdst )
 {
-    Contrib_List* Pclist = &m_Pclist_y[m_cur_dst_y];
+    Contrib_List* Pclist = &m_Pclist_y[ m_cur_dst_y ];
 
     Sample* Ptmp = m_delay_x_resample ? m_Ptmp_buf : Pdst;
-    resampler_assert( Ptmp );
+    assert( Ptmp );
 
     // Process each contributor.
     for( int i = 0; i < Pclist->n; i++ )
@@ -610,27 +608,27 @@ void Resampler::resample_y( Sample* Pdst )
 
         int j;
         for( j = 0; j < MAX_SCAN_BUF_SIZE; j++ )
-            if( m_Pscan_buf->scan_buf_y[j] == Pclist->p[i].pixel )
+            if( m_Pscan_buf->scan_buf_y[ j ] == Pclist->p[ i ].pixel )
                 break;
 
-        resampler_assert( j < MAX_SCAN_BUF_SIZE );
+        assert( j < MAX_SCAN_BUF_SIZE );
 
-        Sample* Psrc = m_Pscan_buf->scan_buf_l[j];
+        Sample* Psrc = m_Pscan_buf->scan_buf_l[ j ];
 
         if( !i )
-            scale_y_mov( Ptmp, Psrc, Pclist->p[i].weight, m_intermediate_x );
+            scale_y_mov( Ptmp, Psrc, Pclist->p[ i ].weight, m_intermediate_x );
         else
-            scale_y_add( Ptmp, Psrc, Pclist->p[i].weight, m_intermediate_x );
+            scale_y_add( Ptmp, Psrc, Pclist->p[ i ].weight, m_intermediate_x );
 
         // If this source line doesn't contribute to any
         // more destination lines then mark the scanline buffer slot
         // which holds this source line as free.
         // (The max. number of slots used depends on the Y
         //  axis sampling factor and the scaled filter width.)
-        if( --m_Psrc_y_count[resampler_range_check( Pclist->p[i].pixel, m_resample_src_y )] == 0 )
+        if( --m_Psrc_y_count[ resampler_range_check( Pclist->p[ i ].pixel, m_resample_src_y ) ] == 0 )
         {
-            m_Psrc_y_flag[resampler_range_check( Pclist->p[i].pixel, m_resample_src_y )] = false;
-            m_Pscan_buf->scan_buf_y[j] = -1;
+            m_Psrc_y_flag[ resampler_range_check( Pclist->p[ i ].pixel, m_resample_src_y ) ] = false;
+            m_Pscan_buf->scan_buf_y[ j ] = -1;
         }
     }
 
@@ -639,12 +637,12 @@ void Resampler::resample_y( Sample* Pdst )
     // Was X resampling delayed until after Y resampling?
     if( m_delay_x_resample )
     {
-        resampler_assert( Pdst != Ptmp );
+        assert( Pdst != Ptmp );
         resample_x( Pdst, Ptmp );
     }
     else
     {
-        resampler_assert( Pdst == Ptmp );
+        assert( Pdst == Ptmp );
     }
 
     if( m_lo < m_hi )
@@ -657,7 +655,7 @@ bool Resampler::put_line( const Sample* Psrc )
         return false;
 
     // Does this source line contribute to any destination line?  if not, exit now.
-    if( !m_Psrc_y_count[resampler_range_check( m_cur_src_y, m_resample_src_y )] )
+    if( !m_Psrc_y_count[ resampler_range_check( m_cur_src_y, m_resample_src_y ) ] )
     {
         m_cur_src_y++;
         return true;
@@ -667,7 +665,7 @@ bool Resampler::put_line( const Sample* Psrc )
     int i;
     {
         for( i = 0; i < MAX_SCAN_BUF_SIZE; i++ )
-            if( m_Pscan_buf->scan_buf_y[i] == -1 )
+            if( m_Pscan_buf->scan_buf_y[ i ] == -1 )
                 break;
 
         // If the buffer is full, exit with an error.
@@ -678,14 +676,14 @@ bool Resampler::put_line( const Sample* Psrc )
         }
     }
 
-    m_Psrc_y_flag[resampler_range_check( m_cur_src_y, m_resample_src_y )] = true;
-    m_Pscan_buf->scan_buf_y[i]  = m_cur_src_y;
+    m_Psrc_y_flag[ resampler_range_check( m_cur_src_y, m_resample_src_y ) ] = true;
+    m_Pscan_buf->scan_buf_y[ i ]  = m_cur_src_y;
 
     // Does this slot have any memory allocated to it?
 
-    if( !m_Pscan_buf->scan_buf_l[i] )
+    if( !m_Pscan_buf->scan_buf_l[ i ] )
     {
-        if( ( m_Pscan_buf->scan_buf_l[i] = ( Sample* ) malloc( m_intermediate_x * sizeof ( Sample ) ) ) == NULL )
+        if( ( m_Pscan_buf->scan_buf_l[ i ] = ( Sample* ) malloc( m_intermediate_x * sizeof ( Sample ) ) ) == NULL )
         {
             m_status = STATUS_OUT_OF_MEMORY;
             return false;
@@ -695,17 +693,17 @@ bool Resampler::put_line( const Sample* Psrc )
     // Resampling on the X axis first?
     if( m_delay_x_resample )
     {
-        resampler_assert( m_intermediate_x == m_resample_src_x );
+        assert( m_intermediate_x == m_resample_src_x );
 
         // Y-X resampling order
-        memcpy( m_Pscan_buf->scan_buf_l[i], Psrc, m_intermediate_x * sizeof ( Sample ) );
+        memcpy( m_Pscan_buf->scan_buf_l[ i ], Psrc, m_intermediate_x * sizeof ( Sample ) );
     }
     else
     {
-        resampler_assert( m_intermediate_x == m_resample_dst_x );
+        assert( m_intermediate_x == m_resample_dst_x );
 
         // X-Y resampling order
-        resample_x( m_Pscan_buf->scan_buf_l[i], Psrc );
+        resample_x( m_Pscan_buf->scan_buf_l[ i ], Psrc );
     }
 
     m_cur_src_y++;
@@ -720,8 +718,8 @@ const Resampler::Sample* Resampler::get_line()
         return NULL;
 
     // Check to see if all the required contributors are present, if not, return NULL.
-    for( int i = 0; i < m_Pclist_y[m_cur_dst_y].n; i++ )
-        if( !m_Psrc_y_flag[resampler_range_check( m_Pclist_y[m_cur_dst_y].p[i].pixel, m_resample_src_y )] )
+    for( int i = 0; i < m_Pclist_y[ m_cur_dst_y ].n; i++ )
+        if( !m_Psrc_y_flag[ resampler_range_check( m_Pclist_y[ m_cur_dst_y ].p[ i ].pixel, m_resample_src_y ) ] )
             return NULL;
 
     resample_y( m_Pdst_buf );
@@ -768,7 +766,7 @@ Resampler::~Resampler()
     if( m_Pscan_buf )
     {
         for( int i = 0; i < MAX_SCAN_BUF_SIZE; i++ )
-            free( m_Pscan_buf->scan_buf_l[i] );
+            free( m_Pscan_buf->scan_buf_l[ i ] );
 
         free( m_Pscan_buf );
         m_Pscan_buf = NULL;
@@ -791,10 +789,10 @@ Resampler::Resampler
     Resample_Real src_y_ofs
     )
 {
-    resampler_assert( src_x > 0 );
-    resampler_assert( src_y > 0 );
-    resampler_assert( dst_x > 0 );
-    resampler_assert( dst_y > 0 );
+    assert( src_x > 0 );
+    assert( src_y > 0 );
+    assert( dst_x > 0 );
+    assert( dst_y > 0 );
 
     m_lo = sample_low;
     m_hi = sample_high;
@@ -834,7 +832,7 @@ Resampler::Resampler
         int i;
         for( i = 0; i < NUM_FILTERS; i++ )
         {
-            if( strcmp( Pfilter_name, g_filters[i].name ) == 0 )
+            if( strcmp( Pfilter_name, g_filters[ i ].name ) == 0 )
                 break;
         }
 
@@ -844,8 +842,8 @@ Resampler::Resampler
             return;
         }
 
-        func = g_filters[i].func;
-        support = g_filters[i].support;
+        func = g_filters[ i ].func;
+        support = g_filters[ i ].support;
     }
 
     // Create contributor lists, unless the user supplied custom lists.
@@ -894,8 +892,8 @@ Resampler::Resampler
 
     // Count how many times each source line contributes to a destination line.
     for( int i = 0; i < m_resample_dst_y; i++ )
-        for( int j = 0; j < m_Pclist_y[i].n; j++ )
-            m_Psrc_y_count[resampler_range_check( m_Pclist_y[i].p[j].pixel, m_resample_src_y )]++;
+        for( int j = 0; j < m_Pclist_y[ i ].n; j++ )
+            m_Psrc_y_count[ resampler_range_check( m_Pclist_y[ i ].p[ j ].pixel, m_resample_src_y ) ]++;
 
     if( ( m_Pscan_buf = ( Scan_Buf* ) malloc( sizeof ( Scan_Buf ) ) ) == NULL )
     {
@@ -905,8 +903,8 @@ Resampler::Resampler
 
     for( int i = 0; i < MAX_SCAN_BUF_SIZE; i++ )
     {
-        m_Pscan_buf->scan_buf_y[i] = -1;
-        m_Pscan_buf->scan_buf_l[i] = NULL;
+        m_Pscan_buf->scan_buf_y[ i ] = -1;
+        m_Pscan_buf->scan_buf_l[ i ] = NULL;
     }
 
     m_cur_src_y = m_cur_dst_y = 0;
@@ -960,5 +958,5 @@ char* Resampler::get_filter_name( int filter_num )
     if( ( filter_num < 0 ) || ( filter_num >= NUM_FILTERS ) )
         return NULL;
     else
-        return g_filters[filter_num].name;
+        return g_filters[ filter_num ].name;
 }
