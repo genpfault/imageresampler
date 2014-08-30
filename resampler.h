@@ -61,8 +61,10 @@ public:
         Resample_Real filter_x_scale = 1.0f,
         Resample_Real filter_y_scale = 1.0f,
         Resample_Real src_x_ofs = 0.0f,
-        Resample_Real src_y_ofs = 0.0f
-        );
+        Resample_Real src_y_ofs = 0.0f,
+        unsigned int dst_subrect_x = 0, unsigned int dst_subrect_y = 0,
+        unsigned int dst_subrect_w = 0, unsigned int dst_subrect_h = 0
+		);
 
     ~Resampler();
 
@@ -93,6 +95,11 @@ private:
     int m_resample_src_y;
     int m_resample_dst_x;
     int m_resample_dst_y;
+   
+   int m_dst_subrect_beg_x;
+   int m_dst_subrect_end_x;
+   int m_dst_subrect_beg_y;
+   int m_dst_subrect_end_y;
 
     Boundary_Op m_boundary_op;
 

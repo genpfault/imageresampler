@@ -554,9 +554,9 @@ void Resampler::resample_x( Sample* Pdst, const Sample* Psrc )
     assert( Pdst );
     assert( Psrc );
 
-    Contrib_List *Pclist = m_Pclist_x;
+    Contrib_List *Pclist = m_Pclist_x + m_dst_subrect_beg_x;
 
-    for( int i = m_resample_dst_x; i > 0; i--, Pclist++ )
+    for( int i = m_dst_subrect_end_x - 1; i >= m_dst_subrect_beg_x; i--, Pclist++ )
     {
         Sample total = 0;
         int j = Pclist->n;
@@ -646,7 +646,7 @@ void Resampler::resample_y( Sample* Pdst )
     }
 
     if( m_lo < m_hi )
-        clamp( Pdst, m_resample_dst_x, m_lo, m_hi );
+        clamp( Pdst, ( m_dst_subrect_end_x - m_dst_subrect_beg_x ), m_lo, m_hi );
 }
 
 bool Resampler::put_line( const Sample* Psrc )
@@ -714,7 +714,7 @@ bool Resampler::put_line( const Sample* Psrc )
 const Resampler::Sample* Resampler::get_line()
 {
     // If all the destination lines have been generated, then always return NULL.
-    if( m_cur_dst_y == m_resample_dst_y )
+    if (m_cur_dst_y == m_dst_subrect_end_y)
         return NULL;
 
     // Check to see if all the required contributors are present, if not, return NULL.
@@ -786,8 +786,9 @@ Resampler::Resampler
     Resample_Real filter_x_scale,
     Resample_Real filter_y_scale,
     Resample_Real src_x_ofs,
-    Resample_Real src_y_ofs
-    )
+    Resample_Real src_y_ofs,
+    unsigned int dst_subrect_x, unsigned int dst_subrect_y,
+    unsigned int dst_subrect_w, unsigned int dst_subrect_h)
 {
     assert( src_x > 0 );
     assert( src_y > 0 );
@@ -815,9 +816,26 @@ Resampler::Resampler
     m_resample_dst_x = dst_x;
     m_resample_dst_y = dst_y;
 
+   // assume we're outputting everything by default...
+   m_dst_subrect_beg_x = 0;
+   m_dst_subrect_end_x = dst_x;
+   m_dst_subrect_beg_y = 0;
+   m_dst_subrect_end_y = dst_y;
+
+   // ...or maybe we have a valid dst subrect
+   if( dst_subrect_w > 0 && dst_subrect_h > 0 &&
+       dst_subrect_x + dst_subrect_w < dst_x &&     // TODO: < or <=?
+       dst_subrect_y + dst_subrect_h < dst_y )
+   {
+       m_dst_subrect_beg_x = dst_subrect_x;
+       m_dst_subrect_end_x = dst_subrect_x + dst_subrect_w;
+       m_dst_subrect_beg_y = dst_subrect_y;
+       m_dst_subrect_end_y = dst_subrect_y + dst_subrect_h;
+   }
+
     m_boundary_op = boundary_op;
 
-    if( ( m_Pdst_buf = ( Sample* ) malloc( m_resample_dst_x * sizeof ( Sample ) ) ) == NULL )
+   if( ( m_Pdst_buf = (Sample*)malloc( ( m_dst_subrect_end_x - m_dst_subrect_beg_x ) * sizeof( Sample ) ) ) == NULL )
     {
         m_status = STATUS_OUT_OF_MEMORY;
         return;
@@ -907,7 +925,8 @@ Resampler::Resampler
         m_Pscan_buf->scan_buf_l[ i ] = NULL;
     }
 
-    m_cur_src_y = m_cur_dst_y = 0;
+    m_cur_src_y = 0;
+    m_cur_dst_y = m_dst_subrect_beg_y;
     {
         // Determine which axis to resample first by comparing the number of multiplies required
         // for each possibility.
