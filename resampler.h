@@ -63,9 +63,6 @@ public:
 
     ~Resampler();
 
-    // Reinits resampler so it can handle another frame.
-    void restart();
-
     // false on out of memory.
     bool put_line(const Sample* Psrc);
 
@@ -75,7 +72,6 @@ public:
     Status status() const { return m_status; }
 
     // Returned contributor lists can be shared with another Resampler.
-    void get_clists(Contrib_List** ptr_clist_x, Contrib_List** ptr_clist_y);
     Contrib_List* get_clist_x() const { return m_Pclist_x; }
     Contrib_List* get_clist_y() const { return m_Pclist_y; }
 
@@ -109,7 +105,7 @@ private:
     bool m_delay_x_resample;
 
     int* m_Psrc_y_count;
-    unsigned char* m_Psrc_y_flag;
+    bool* m_Psrc_y_flag;
 
     // The maximum number of scanlines that can be buffered at one time.
     enum { MAX_SCAN_BUF_SIZE = RESAMPLER_MAX_DIMENSION };

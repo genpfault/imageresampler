@@ -17,31 +17,14 @@
 
 #define resampler_assert assert
 
-static inline int resampler_range_check(int v, int h) { (void)h; resampler_assert((v >= 0) && (v < h)); return v; }
-
-#ifndef max
-#define max(a,b) (((a) > (b)) ? (a) : (b))
-#endif
-
-#ifndef min
-#define min(a,b) (((a) < (b)) ? (a) : (b))
-#endif
-
-#ifndef TRUE
-#define TRUE (1)
-#endif
-
-#ifndef FALSE
-#define FALSE (0)
-#endif
+static inline int resampler_range_check(int v, int h)
+{
+    (void)h;
+    resampler_assert( (v >= 0) && (v < h) );
+    return v;
+}
 
 #define M_PI 3.14159265358979323846
-
-// Float to int cast with truncation.
-static inline int cast_to_int(Resample_Real i)
-{
-    return (int)i;
-}
 
 // (x mod y) with special handling for negative x values.
 static inline int posmod(int x, int y)
@@ -484,8 +467,8 @@ Resampler::Contrib_List* Resampler::make_clist(
             center -= NUDGE;
             center += src_ofs;
 
-            left   = cast_to_int((Resample_Real)floor(center - half_width));
-            right  = cast_to_int((Resample_Real)ceil(center + half_width));
+            left   = static_cast< int >((Resample_Real)floor(center - half_width));
+            right  = static_cast< int >((Resample_Real)ceil(center + half_width));
 
             Pcontrib_bounds[i].center = center;
             Pcontrib_bounds[i].left   = left;
@@ -591,8 +574,8 @@ Resampler::Contrib_List* Resampler::make_clist(
             center -= NUDGE;
             center += src_ofs;
 
-            left   = cast_to_int((Resample_Real)floor(center - half_width));
-            right  = cast_to_int((Resample_Real)ceil(center + half_width));
+            left   = static_cast< int >((Resample_Real)floor(center - half_width));
+            right  = static_cast< int >((Resample_Real)ceil(center + half_width));
 
             Pcontrib_bounds[i].center = center;
             Pcontrib_bounds[i].left   = left;
@@ -770,7 +753,7 @@ void Resampler::resample_y(Sample* Pdst)
 
         if (--m_Psrc_y_count[resampler_range_check(Pclist->p[i].pixel, m_resample_src_y)] == 0)
         {
-            m_Psrc_y_flag[resampler_range_check(Pclist->p[i].pixel, m_resample_src_y)] = FALSE;
+            m_Psrc_y_flag[resampler_range_check(Pclist->p[i].pixel, m_resample_src_y)] = false;
             m_Pscan_buf->scan_buf_y[j] = -1;
         }
     }
@@ -823,7 +806,7 @@ bool Resampler::put_line(const Sample* Psrc)
         return false;
     }
 
-    m_Psrc_y_flag[resampler_range_check(m_cur_src_y, m_resample_src_y)] = TRUE;
+    m_Psrc_y_flag[resampler_range_check(m_cur_src_y, m_resample_src_y)] = true;
     m_Pscan_buf->scan_buf_y[i]  = m_cur_src_y;
 
     /* Does this slot have any memory allocated to it? */
@@ -932,35 +915,6 @@ Resampler::~Resampler()
     }
 }
 
-void Resampler::restart()
-{
-    if (STATUS_OKAY != m_status)
-        return;
-
-    m_cur_src_y = m_cur_dst_y = 0;
-
-    int i, j;
-    for (i = 0; i < m_resample_src_y; i++)
-    {
-        m_Psrc_y_count[i] = 0;
-        m_Psrc_y_flag[i] = FALSE;
-    }
-
-    for (i = 0; i < m_resample_dst_y; i++)
-    {
-        for (j = 0; j < m_Pclist_y[i].n; j++)
-            m_Psrc_y_count[resampler_range_check(m_Pclist_y[i].p[j].pixel, m_resample_src_y)]++;
-    }
-
-    for (i = 0; i < MAX_SCAN_BUF_SIZE; i++)
-    {
-        m_Pscan_buf->scan_buf_y[i] = -1;
-
-        free(m_Pscan_buf->scan_buf_l[i]);
-        m_Pscan_buf->scan_buf_l[i] = NULL;
-    }
-}
-
 Resampler::Resampler(int src_x, int src_y,
                      int dst_x, int dst_y,
                      Boundary_Op boundary_op,
@@ -1066,7 +1020,7 @@ Resampler::Resampler(int src_x, int src_y,
         return;
     }
 
-    if ((m_Psrc_y_flag = (unsigned char*)calloc(m_resample_src_y, sizeof(unsigned char))) == NULL)
+    if ((m_Psrc_y_flag = (bool*)calloc(m_resample_src_y, sizeof(bool))) == NULL)
     {
         m_status = STATUS_OUT_OF_MEMORY;
         return;
@@ -1133,15 +1087,6 @@ Resampler::Resampler(int src_x, int src_y,
     }
 }
 
-void Resampler::get_clists(Contrib_List** ptr_clist_x, Contrib_List** ptr_clist_y)
-{
-    if (ptr_clist_x)
-        *ptr_clist_x = m_Pclist_x;
-
-    if (ptr_clist_y)
-        *ptr_clist_y = m_Pclist_y;
-}
-
 int Resampler::get_filter_num()
 {
     return NUM_FILTERS;
@@ -1154,4 +1099,3 @@ char* Resampler::get_filter_name(int filter_num)
     else
         return g_filters[filter_num].name;
 }
-
