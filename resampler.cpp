@@ -553,15 +553,17 @@ void Resampler::resample_x(Sample* Pdst, const Sample* Psrc)
     resampler_assert(Pdst);
     resampler_assert(Psrc);
 
-    int i, j;
-    Sample total;
     Contrib_List *Pclist = m_Pclist_x;
-    Contrib *p;
 
-    for (i = m_resample_dst_x; i > 0; i--, Pclist++)
+    for(int i = m_resample_dst_x; i > 0; i--, Pclist++)
     {
-        for (j = Pclist->n, p = Pclist->p, total = 0; j > 0; j--, p++)
+        Sample total = 0;
+        int j = Pclist->n;
+        Contrib *p = Pclist->p;
+        for( ; j > 0; j--, p++ )
+        {
             total += Psrc[p->pixel] * p->weight;
+        }
 
         *Pdst++ = total;
     }
@@ -569,10 +571,8 @@ void Resampler::resample_x(Sample* Pdst, const Sample* Psrc)
 
 void Resampler::scale_y_mov(Sample* Ptmp, const Sample* Psrc, Resample_Real weight, int dst_x)
 {
-    int i;
-
     // Not += because temp buf wasn't cleared.
-    for (i = dst_x; i > 0; i--)
+    for(int i = dst_x; i > 0; i--)
         *Ptmp++ = *Psrc++ * weight;
 }
 
@@ -594,26 +594,25 @@ void Resampler::clamp(Sample* Pdst, int n, Resample_Real lo, Resample_Real hi)
 
 void Resampler::resample_y(Sample* Pdst)
 {
-    int i, j;
-    Sample* Psrc;
     Contrib_List* Pclist = &m_Pclist_y[m_cur_dst_y];
 
     Sample* Ptmp = m_delay_x_resample ? m_Ptmp_buf : Pdst;
     resampler_assert(Ptmp);
 
     // Process each contributor.
-    for(i = 0; i < Pclist->n; i++)
+    for(int i = 0; i < Pclist->n; i++)
     {
         // locate the contributor's location in the scan
         // buffer -- the contributor must always be found!
 
+        int j;
         for (j = 0; j < MAX_SCAN_BUF_SIZE; j++)
             if (m_Pscan_buf->scan_buf_y[j] == Pclist->p[i].pixel)
                 break;
 
         resampler_assert(j < MAX_SCAN_BUF_SIZE);
 
-        Psrc = m_Pscan_buf->scan_buf_l[j];
+        Sample* Psrc = m_Pscan_buf->scan_buf_l[j];
 
         if (!i)
             scale_y_mov(Ptmp, Psrc, Pclist->p[i].weight, m_intermediate_x);
@@ -625,7 +624,6 @@ void Resampler::resample_y(Sample* Pdst)
         // which holds this source line as free.
         // (The max. number of slots used depends on the Y
         //  axis sampling factor and the scaled filter width.)
-
         if (--m_Psrc_y_count[resampler_range_check(Pclist->p[i].pixel, m_resample_src_y)] == 0)
         {
             m_Psrc_y_flag[resampler_range_check(Pclist->p[i].pixel, m_resample_src_y)] = false;
@@ -635,7 +633,8 @@ void Resampler::resample_y(Sample* Pdst)
 
     // Now generate the destination line
 
-    if (m_delay_x_resample) // Was X resampling delayed until after Y resampling?
+    // Was X resampling delayed until after Y resampling?
+    if (m_delay_x_resample)
     {
         resampler_assert(Pdst != Ptmp);
         resample_x(Pdst, Ptmp);
@@ -651,15 +650,10 @@ void Resampler::resample_y(Sample* Pdst)
 
 bool Resampler::put_line(const Sample* Psrc)
 {
-    int i;
-
     if (m_cur_src_y >= m_resample_src_y)
         return false;
 
-    // Does this source line contribute
-    // to any destination line? if not,
-    // exit now.
-
+    // Does this source line contribute to any destination line?  if not, exit now.
     if (!m_Psrc_y_count[resampler_range_check(m_cur_src_y, m_resample_src_y)])
     {
         m_cur_src_y++;
@@ -667,17 +661,18 @@ bool Resampler::put_line(const Sample* Psrc)
     }
 
     // Find an empty slot in the scanline buffer. (FIXME: Perf. is terrible here with extreme scaling ratios.)
-
-    for (i = 0; i < MAX_SCAN_BUF_SIZE; i++)
-        if (m_Pscan_buf->scan_buf_y[i] == -1)
-            break;
+    int i;
+    {
+	    for (i = 0; i < MAX_SCAN_BUF_SIZE; i++)
+	        if (m_Pscan_buf->scan_buf_y[i] == -1)
+	            break;
 
         // If the buffer is full, exit with an error.
-
-    if (i == MAX_SCAN_BUF_SIZE)
-    {
-        m_status = STATUS_SCAN_BUFFER_FULL;
-        return false;
+	    if (i == MAX_SCAN_BUF_SIZE)
+	    {
+	        m_status = STATUS_SCAN_BUFFER_FULL;
+	        return false;
+        }
     }
 
     m_Psrc_y_flag[resampler_range_check(m_cur_src_y, m_resample_src_y)] = true;
@@ -717,19 +712,12 @@ bool Resampler::put_line(const Sample* Psrc)
 
 const Resampler::Sample* Resampler::get_line()
 {
-    int i;
-
-    // If all the destination lines have been
-    // generated, then always return NULL.
-
+    // If all the destination lines have been generated, then always return NULL.
     if (m_cur_dst_y == m_resample_dst_y)
         return NULL;
 
-    // Check to see if all the required
-    // contributors are present, if not,
-    // return NULL.
-
-    for (i = 0; i < m_Pclist_y[m_cur_dst_y].n; i++)
+    // Check to see if all the required contributors are present, if not, return NULL.
+    for (int i = 0; i < m_Pclist_y[m_cur_dst_y].n; i++)
         if (!m_Psrc_y_flag[resampler_range_check(m_Pclist_y[m_cur_dst_y].p[i].pixel, m_resample_src_y)])
             return NULL;
 
@@ -742,8 +730,6 @@ const Resampler::Sample* Resampler::get_line()
 
 Resampler::~Resampler()
 {
-    int i;
-
     free(m_Pdst_buf);
     m_Pdst_buf = NULL;
 
@@ -778,7 +764,7 @@ Resampler::~Resampler()
 
     if (m_Pscan_buf)
     {
-        for (i = 0; i < MAX_SCAN_BUF_SIZE; i++)
+        for (int i = 0; i < MAX_SCAN_BUF_SIZE; i++)
             free(m_Pscan_buf->scan_buf_l[i]);
 
         free(m_Pscan_buf);
@@ -798,9 +784,6 @@ Resampler::Resampler(int src_x, int src_y,
                      Resample_Real src_x_ofs,
                      Resample_Real src_y_ofs)
 {
-    int i, j;
-    Resample_Real support, (*func)(Resample_Real);
-
     resampler_assert(src_x > 0);
     resampler_assert(src_y > 0);
     resampler_assert(dst_x > 0);
@@ -836,22 +819,27 @@ Resampler::Resampler(int src_x, int src_y,
     }
 
     // Find the specified filter.
-
     if (Pfilter_name == NULL)
         Pfilter_name = RESAMPLER_DEFAULT_FILTER;
 
-    for (i = 0; i < NUM_FILTERS; i++)
-        if (strcmp(Pfilter_name, g_filters[i].name) == 0)
-            break;
-
-    if (i == NUM_FILTERS)
+    Resample_Real support, (*func)(Resample_Real);
     {
-        m_status = STATUS_BAD_FILTER_NAME;
-        return;
-    }
+        int i;
+        for(i = 0; i < NUM_FILTERS; i++)
+        {
+            if(strcmp(Pfilter_name, g_filters[i].name) == 0)
+                break;
+        }
 
-    func = g_filters[i].func;
-    support = g_filters[i].support;
+        if(i == NUM_FILTERS)
+        {
+            m_status = STATUS_BAD_FILTER_NAME;
+            return;
+        }
+
+        func = g_filters[i].func;
+        support = g_filters[i].support;
+    }
 
     // Create contributor lists, unless the user supplied custom lists.
 
@@ -897,11 +885,9 @@ Resampler::Resampler(int src_x, int src_y,
         return;
     }
 
-    // Count how many times each source line
-    // contributes to a destination line.
-
-    for (i = 0; i < m_resample_dst_y; i++)
-        for (j = 0; j < m_Pclist_y[i].n; j++)
+    // Count how many times each source line contributes to a destination line.
+    for(int i = 0; i < m_resample_dst_y; i++)
+        for(int j = 0; j < m_Pclist_y[i].n; j++)
             m_Psrc_y_count[resampler_range_check(m_Pclist_y[i].p[j].pixel, m_resample_src_y)]++;
 
     if ((m_Pscan_buf = (Scan_Buf*)malloc(sizeof(Scan_Buf))) == NULL)
@@ -910,7 +896,7 @@ Resampler::Resampler(int src_x, int src_y,
         return;
     }
 
-    for (i = 0; i < MAX_SCAN_BUF_SIZE; i++)
+    for (int i = 0; i < MAX_SCAN_BUF_SIZE; i++)
     {
         m_Pscan_buf->scan_buf_y[i] = -1;
         m_Pscan_buf->scan_buf_l[i] = NULL;
