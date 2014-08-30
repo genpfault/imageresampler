@@ -42,16 +42,16 @@ public:
         STATUS_SCAN_BUFFER_FULL = 3
     };
 
-    // src_x/src_y - Input dimensions
-    // dst_x/dst_y - Output dimensions
+    // src_w/src_h - Input dimensions
+    // dst_w/dst_h - Output dimensions
     // boundary_op - How to sample pixels near the image boundaries
     // sample_low/sample_high - Clamp output samples to specified range, or disable clamping if sample_low >= sample_high
     // Pclist_x/Pclist_y - Optional pointers to contributor lists from another instance of a Resampler
     // src_x_ofs/src_y_ofs - Offset input image by specified amount (fractional values okay)
     Resampler
         (
-        int src_x, int src_y,
-        int dst_x, int dst_y,
+        int src_w, int src_h,
+        int dst_w, int dst_h,
         Boundary_Op boundary_op = BOUNDARY_CLAMP,
         Resample_Real sample_low = 0.0f,
         Resample_Real sample_high = 0.0f,
@@ -91,15 +91,15 @@ private:
 
     int m_intermediate_x;
 
-    int m_resample_src_x;
-    int m_resample_src_y;
-    int m_resample_dst_x;
-    int m_resample_dst_y;
+    int m_resample_src_w;
+    int m_resample_src_h;
+    int m_resample_dst_w;
+    int m_resample_dst_h;
    
-   int m_dst_subrect_beg_x;
-   int m_dst_subrect_end_x;
-   int m_dst_subrect_beg_y;
-   int m_dst_subrect_end_y;
+    int m_dst_subrect_beg_x;
+    int m_dst_subrect_end_x;
+    int m_dst_subrect_beg_y;
+    int m_dst_subrect_end_y;
 
     Boundary_Op m_boundary_op;
 
@@ -134,16 +134,16 @@ private:
     Status m_status;
 
     void resample_x(Sample* Pdst, const Sample* Psrc);
-    static void scale_y_mov(Sample* Ptmp, const Sample* Psrc, Resample_Real weight, int dst_x);
-    static void scale_y_add(Sample* Ptmp, const Sample* Psrc, Resample_Real weight, int dst_x);
+    static void scale_y_mov(Sample* Ptmp, const Sample* Psrc, Resample_Real weight, int dst_w);
+    static void scale_y_add(Sample* Ptmp, const Sample* Psrc, Resample_Real weight, int dst_w);
     static void clamp(Sample* Pdst, int n, Resample_Real lo, Resample_Real hi);
     void resample_y(Sample* Pdst);
 
-    static int reflect(const int j, const int src_x, const Boundary_Op boundary_op);
+    static int reflect(const int j, const int src_w, const Boundary_Op boundary_op);
 
     static Contrib_List* make_clist
         (
-        int src_x, int dst_x,
+        int src_w, int dst_w,
         Boundary_Op boundary_op,
         Resample_Real (*Pfilter)(Resample_Real),
         Resample_Real filter_support,
