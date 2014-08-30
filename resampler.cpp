@@ -36,8 +36,6 @@ static inline int resampler_range_check(int v, int h) { (void)h; resampler_asser
 #define FALSE (0)
 #endif
 
-#define RESAMPLER_DEBUG 0
-
 #define M_PI 3.14159265358979323846
 
 // Float to int cast with truncation.
@@ -535,10 +533,6 @@ Resampler::Contrib_List* Resampler::make_clist(
 
             total_weight = 0;
 
-#if RESAMPLER_DEBUG
-            printf("%i: ", i);
-#endif
-
             for (j = left; j <= right; j++)
             {
                 weight = (*Pfilter)((center - (Resample_Real)j) * xscale * oo_filter_scale) * norm;
@@ -546,10 +540,6 @@ Resampler::Contrib_List* Resampler::make_clist(
                     continue;
 
                 n = reflect(j, src_x, boundary_op);
-
-#if RESAMPLER_DEBUG
-                printf("%i(%f), ", n, weight);
-#endif
 
                 /* Increment the number of source
                 * samples which contribute to the
@@ -569,10 +559,6 @@ Resampler::Contrib_List* Resampler::make_clist(
                     max_k = k;
                 }
             }
-
-#if RESAMPLER_DEBUG
-            printf("\n\n");
-#endif
 
             //resampler_assert(Pcontrib[i].n);
             //resampler_assert(max_k != -1);
@@ -654,10 +640,6 @@ Resampler::Contrib_List* Resampler::make_clist(
 
             total_weight = 0;
 
-#if RESAMPLER_DEBUG
-            printf("%i: ", i);
-#endif
-
             for (j = left; j <= right; j++)
             {
                 weight = (*Pfilter)((center - (Resample_Real)j) * oo_filter_scale) * norm;
@@ -665,10 +647,6 @@ Resampler::Contrib_List* Resampler::make_clist(
                     continue;
 
                 n = reflect(j, src_x, boundary_op);
-
-#if RESAMPLER_DEBUG
-                printf("%i(%f), ", n, weight);
-#endif
 
                 /* Increment the number of source
                 * samples which contribute to the
@@ -689,10 +667,6 @@ Resampler::Contrib_List* Resampler::make_clist(
                 }
             }
 
-#if RESAMPLER_DEBUG
-            printf("\n\n");
-#endif
-
             //resampler_assert(Pcontrib[i].n);
             //resampler_assert(max_k != -1);
 
@@ -708,10 +682,6 @@ Resampler::Contrib_List* Resampler::make_clist(
                 Pcontrib[i].p[max_k].weight += 1.0f - total_weight;
         }
     }
-
-#if RESAMPLER_DEBUG
-    printf("*******\n");
-#endif
 
     free(Pcontrib_bounds);
 
@@ -730,10 +700,6 @@ void Resampler::resample_x(Sample* Pdst, const Sample* Psrc)
 
     for (i = m_resample_dst_x; i > 0; i--, Pclist++)
     {
-#if RESAMPLER_DEBUG_OPS
-        total_ops += Pclist->n;
-#endif
-
         for (j = Pclist->n, p = Pclist->p, total = 0; j > 0; j--, p++)
             total += Psrc[p->pixel] * p->weight;
 
@@ -745,10 +711,6 @@ void Resampler::scale_y_mov(Sample* Ptmp, const Sample* Psrc, Resample_Real weig
 {
     int i;
 
-#if RESAMPLER_DEBUG_OPS
-    total_ops += dst_x;
-#endif
-
     // Not += because temp buf wasn't cleared.
     for (i = dst_x; i > 0; i--)
         *Ptmp++ = *Psrc++ * weight;
@@ -756,10 +718,6 @@ void Resampler::scale_y_mov(Sample* Ptmp, const Sample* Psrc, Resample_Real weig
 
 void Resampler::scale_y_add(Sample* Ptmp, const Sample* Psrc, Resample_Real weight, int dst_x)
 {
-#if RESAMPLER_DEBUG_OPS
-    total_ops += dst_x;
-#endif
-
     for (int i = dst_x; i > 0; i--)
         (*Ptmp++) += *Psrc++ * weight;
 }
@@ -932,10 +890,6 @@ Resampler::~Resampler()
 {
     int i;
 
-#if RESAMPLER_DEBUG_OPS
-    printf("actual ops: %i\n", total_ops);
-#endif
-
     free(m_Pdst_buf);
     m_Pdst_buf = NULL;
 
@@ -1027,10 +981,6 @@ Resampler::Resampler(int src_x, int src_y,
     resampler_assert(src_y > 0);
     resampler_assert(dst_x > 0);
     resampler_assert(dst_y > 0);
-
-#if RESAMPLER_DEBUG_OPS
-    total_ops = 0;
-#endif
 
     m_lo = sample_low;
     m_hi = sample_high;
@@ -1158,15 +1108,6 @@ Resampler::Resampler(int src_x, int src_y,
         int yx_ops = (4 * y_ops * m_resample_src_x)/3 +
             x_ops * m_resample_dst_y;
 
-#if RESAMPLER_DEBUG_OPS
-        printf("src: %i %i\n", m_resample_src_x, m_resample_src_y);
-        printf("dst: %i %i\n", m_resample_dst_x, m_resample_dst_y);
-        printf("x_ops: %i\n", x_ops);
-        printf("y_ops: %i\n", y_ops);
-        printf("xy_ops: %i\n", xy_ops);
-        printf("yx_ops: %i\n", yx_ops);
-#endif
-
         // Now check which resample order is better. In case of a tie, choose the order
         // which buffers the least amount of data.
         if ((xy_ops > yx_ops) ||
@@ -1181,9 +1122,6 @@ Resampler::Resampler(int src_x, int src_y,
             m_delay_x_resample = false;
             m_intermediate_x = m_resample_dst_x;
         }
-#if RESAMPLER_DEBUG_OPS
-        printf("delaying: %i\n", m_delay_x_resample);
-#endif
     }
 
     if (m_delay_x_resample)

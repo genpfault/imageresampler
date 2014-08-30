@@ -3,7 +3,6 @@
 #ifndef __RESAMPLER_H__
 #define __RESAMPLER_H__
 
-#define RESAMPLER_DEBUG_OPS 0
 #define RESAMPLER_DEFAULT_FILTER "lanczos4"
 
 #define RESAMPLER_MAX_DIMENSION 16384
@@ -88,10 +87,6 @@ private:
     Resampler();
     Resampler(const Resampler& o);
     Resampler& operator= (const Resampler& o);
-
-#ifdef RESAMPLER_DEBUG_OPS
-    int total_ops;
-#endif
 
     int m_intermediate_x;
 
