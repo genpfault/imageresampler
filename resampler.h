@@ -48,18 +48,21 @@ public:
     // sample_low/sample_high - Clamp output samples to specified range, or disable clamping if sample_low >= sample_high
     // Pclist_x/Pclist_y - Optional pointers to contributor lists from another instance of a Resampler
     // src_x_ofs/src_y_ofs - Offset input image by specified amount (fractional values okay)
-    Resampler(
+    Resampler
+        (
         int src_x, int src_y,
         int dst_x, int dst_y,
         Boundary_Op boundary_op = BOUNDARY_CLAMP,
-        Resample_Real sample_low = 0.0f, Resample_Real sample_high = 0.0f,
+        Resample_Real sample_low = 0.0f,
+        Resample_Real sample_high = 0.0f,
         const char* Pfilter_name = RESAMPLER_DEFAULT_FILTER,
         Contrib_List* Pclist_x = NULL,
         Contrib_List* Pclist_y = NULL,
         Resample_Real filter_x_scale = 1.0f,
         Resample_Real filter_y_scale = 1.0f,
         Resample_Real src_x_ofs = 0.0f,
-        Resample_Real src_y_ofs = 0.0f);
+        Resample_Real src_y_ofs = 0.0f
+        );
 
     ~Resampler();
 
@@ -131,12 +134,15 @@ private:
 
     static int reflect(const int j, const int src_x, const Boundary_Op boundary_op);
 
-    static Contrib_List* make_clist(
-        int src_x, int dst_x, Boundary_Op boundary_op,
+    static Contrib_List* make_clist
+        (
+        int src_x, int dst_x,
+        Boundary_Op boundary_op,
         Resample_Real (*Pfilter)(Resample_Real),
         Resample_Real filter_support,
         Resample_Real filter_scale,
-        Resample_Real src_ofs);
+        Resample_Real src_ofs
+        );
 
     static inline int count_ops(Contrib_List* Pclist, int k)
     {
