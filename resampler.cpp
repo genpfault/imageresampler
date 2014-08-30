@@ -700,7 +700,7 @@ bool Resampler::put_line( const Sample* Psrc )
     }
     else
     {
-        assert( m_intermediate_x == m_resample_dst_x );
+        assert( m_intermediate_x == ( m_dst_subrect_end_x - m_dst_subrect_beg_x ) );
 
         // X-Y resampling order
         resample_x( m_Pscan_buf->scan_buf_l[ i ], Psrc );
@@ -824,8 +824,8 @@ Resampler::Resampler
 
    // ...or maybe we have a valid dst subrect
    if( dst_subrect_w > 0 && dst_subrect_h > 0 &&
-       dst_subrect_x + dst_subrect_w < dst_x &&     // TODO: < or <=?
-       dst_subrect_y + dst_subrect_h < dst_y )
+       dst_subrect_x + dst_subrect_w <= dst_x &&
+       dst_subrect_y + dst_subrect_h <= dst_y )
    {
        m_dst_subrect_beg_x = dst_subrect_x;
        m_dst_subrect_end_x = dst_subrect_x + dst_subrect_w;
@@ -953,7 +953,7 @@ Resampler::Resampler
         else
         {
             m_delay_x_resample = false;
-            m_intermediate_x = m_resample_dst_x;
+            m_intermediate_x = ( m_dst_subrect_end_x - m_dst_subrect_beg_x );
         }
     }
 
