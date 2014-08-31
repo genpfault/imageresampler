@@ -591,14 +591,9 @@ void Resampler::resample_y( Sample* Pdst )
         // locate the contributor's location in the scan
         // buffer -- the contributor must always be found!
 
-        unsigned int j;
-        for( j = 0; j < MAX_SCAN_BUF_SIZE; j++ )
-            if( m_Pscan_buf->scan_buf_y[ j ] == Pclist->p[ i ].pixel )
-                break;
-
-        assert( j < MAX_SCAN_BUF_SIZE );
-
-        Sample* Psrc = &m_Pscan_buf->scan_buf_l[ j ][ 0 ];
+        std::vector< Sample >& scan_buf = m_Pscan_buf[ Pclist->p[ i ].pixel ];
+        assert( !scan_buf.empty() );
+        Sample* Psrc = &scan_buf[ 0 ];
 
         if( !i )
             scale_y_mov( Ptmp, Psrc, Pclist->p[ i ].weight, m_intermediate_x );
@@ -613,7 +608,7 @@ void Resampler::resample_y( Sample* Pdst )
         if( --m_Psrc_y_count[ resampler_range_check( Pclist->p[ i ].pixel, m_resample_src_h ) ] == 0 )
         {
             m_Psrc_y_flag[ resampler_range_check( Pclist->p[ i ].pixel, m_resample_src_h ) ] = false;
-            m_Pscan_buf->scan_buf_y[ j ] = -1;
+            m_Pscan_buf.erase( Pclist->p[ i ].pixel );
         }
     }
 
@@ -646,30 +641,10 @@ bool Resampler::put_line( const Sample* Psrc )
         return true;
     }
 
-    // Find an empty slot in the scanline buffer. (FIXME: Perf. is terrible here with extreme scaling ratios.)
-    unsigned int i;
-    {
-        for( i = 0; i < MAX_SCAN_BUF_SIZE; i++ )
-            if( m_Pscan_buf->scan_buf_y[ i ] == -1 )
-                break;
-
-        // If the buffer is full, exit with an error.
-        if( i == MAX_SCAN_BUF_SIZE )
-        {
-            m_status = STATUS_SCAN_BUFFER_FULL;
-            return false;
-        }
-    }
-
+    // Find an empty slot in the scanline buffer.
     m_Psrc_y_flag[ resampler_range_check( m_cur_src_y, m_resample_src_h ) ] = true;
-    m_Pscan_buf->scan_buf_y[ i ]  = m_cur_src_y;
-
-    // Does this slot have any memory allocated to it?
-
-    if( m_Pscan_buf->scan_buf_l[ i ].empty() )
-    {
-        m_Pscan_buf->scan_buf_l[ i ].resize( m_intermediate_x );
-    }
+    std::vector< Sample >& scan_buf = m_Pscan_buf[ m_cur_src_y ];
+    scan_buf.resize( m_intermediate_x );
 
     // Resampling on the X axis first?
     if( m_delay_x_resample )
@@ -677,14 +652,14 @@ bool Resampler::put_line( const Sample* Psrc )
         assert( m_intermediate_x == m_resample_src_w );
 
         // Y-X resampling order
-        std::copy( Psrc, Psrc + m_intermediate_x, m_Pscan_buf->scan_buf_l[ i ].begin() );
+        std::copy( Psrc, Psrc + m_intermediate_x, scan_buf.begin() );
     }
     else
     {
         assert( m_intermediate_x == ( m_dst_subrect_end_x - m_dst_subrect_beg_x ) );
 
         // X-Y resampling order
-        resample_x( &m_Pscan_buf->scan_buf_l[ i ][ 0 ], Psrc );
+        resample_x( &scan_buf[ 0 ], Psrc );
     }
 
     m_cur_src_y++;
@@ -826,13 +801,6 @@ Resampler::Resampler
     for( unsigned int i = 0; i < m_resample_dst_h; i++ )
         for( unsigned int j = 0; j < m_Pclist_y[ i ].n; j++ )
             m_Psrc_y_count[ resampler_range_check( m_Pclist_y[ i ].p[ j ].pixel, m_resample_src_h ) ]++;
-
-    m_Pscan_buf.reset( new Scan_Buf );
-
-    for( unsigned int i = 0; i < MAX_SCAN_BUF_SIZE; i++ )
-    {
-        m_Pscan_buf->scan_buf_y[ i ] = -1;
-    }
 
     m_cur_src_y = 0;
     m_cur_dst_y = m_dst_subrect_beg_y;

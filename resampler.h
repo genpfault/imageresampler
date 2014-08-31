@@ -5,10 +5,9 @@
 
 #include <vector>
 #include <memory>
+#include <map>
 
 #define RESAMPLER_DEFAULT_FILTER "lanczos4"
-
-#define RESAMPLER_MAX_DIMENSION 16384
 
 // float or double
 typedef float Resample_Real;
@@ -123,16 +122,7 @@ private:
     std::vector< int > m_Psrc_y_count;
     std::vector< bool > m_Psrc_y_flag;
 
-    // The maximum number of scanlines that can be buffered at one time.
-    enum { MAX_SCAN_BUF_SIZE = RESAMPLER_MAX_DIMENSION };
-
-    struct Scan_Buf
-    {
-        int scan_buf_y[MAX_SCAN_BUF_SIZE];
-        std::vector< Sample > scan_buf_l[MAX_SCAN_BUF_SIZE];
-    };
-
-    std::auto_ptr< Scan_Buf > m_Pscan_buf;
+    std::map< int, std::vector< Sample > > m_Pscan_buf;
 
     unsigned int m_cur_src_y;
     unsigned int m_cur_dst_y;
