@@ -6,8 +6,13 @@ OBJECT_DIR = bin
 bin/resampler: $(OBJECTS_CPP)
 	g++ $^ -o $@
 
+.depend: Makefile *.cpp *.h
+	fastdep $(SOURCES_CPP) > .depend
+-include .depend
+
 $(OBJECT_DIR)/%.o : %.cpp
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
+
 clean:
-	rm -f bin/resampler $(OBJECT_DIR)/*.o
+	rm -f bin/resampler $(OBJECT_DIR)/*.o .depend
