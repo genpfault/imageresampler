@@ -338,9 +338,9 @@ static Resample_Real kaiser_filter( Resample_Real t )
 }
 
 // filters[] is a list of all the available filter functions.
-static struct
+static const struct
 {
-    char name[ 32 ];
+    const char * name;
     Resample_Real ( *func )( Resample_Real t );
     Resample_Real support;
 } g_filters[] =
@@ -953,7 +953,7 @@ int Resampler::get_filter_num()
     return NUM_FILTERS;
 }
 
-char* Resampler::get_filter_name( int filter_num )
+const char* Resampler::get_filter_name( int filter_num )
 {
     if( ( filter_num < 0 ) || ( filter_num >= NUM_FILTERS ) )
         return NULL;
