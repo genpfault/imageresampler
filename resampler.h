@@ -80,7 +80,7 @@ public:
 
     // Filter accessors.
     static int get_filter_num();
-    static char* get_filter_name(int filter_num);
+    static const char* get_filter_name(int filter_num);
 
 private:
     Resampler();
