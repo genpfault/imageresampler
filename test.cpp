@@ -16,9 +16,9 @@
 
 int main(int arg_c, char** arg_v)
 {
-   if (arg_c != 5)
+   if (arg_c != 9 && arg_c != 5)
    {
-      printf("Usage: input_image output_image.tga width height\n");
+      printf("Usage: input_image output_image.tga width height [subrect-x] [subrect-y] [subrect-width] [subrect-height]\n");
       return EXIT_FAILURE;
    }
    
@@ -26,10 +26,27 @@ int main(int arg_c, char** arg_v)
    const char* pDst_filename = arg_v[2];
    const int dst_width = atoi(arg_v[3]);
    const int dst_height = atoi(arg_v[4]);
+
+   const int subrect_x = arg_c == 9 ? atoi( arg_v[5] ) : 0;
+   const int subrect_y = arg_c == 9 ? atoi( arg_v[6] ) : 0;
+   const int subrect_w = arg_c == 9 ? atoi( arg_v[7] ) : dst_width;
+   const int subrect_h = arg_c == 9 ? atoi( arg_v[8] ) : dst_height;
    
    if ((std::min(dst_width, dst_height) < 1) || (std::max(dst_width, dst_height) > RESAMPLER_MAX_DIMENSION))
    {
       printf("Invalid output width/height!\n");
+      return EXIT_FAILURE;
+   }
+
+   if ( subrect_w > dst_width )
+   {
+      printf("Invalid horizontal crop!\n");
+      return EXIT_FAILURE;
+   }
+
+   if ( subrect_h > dst_height )
+   {
+      printf("Invalid vertical crop!\n");
       return EXIT_FAILURE;
    }
    
@@ -42,7 +59,6 @@ int main(int arg_c, char** arg_v)
       printf("Failed loading image!\n");
       return EXIT_FAILURE;
    }
-   
    printf("Resolution: %ux%u, Channels: %u\n", src_width, src_height, n);
    
    const int max_components = 4;   
@@ -83,18 +99,18 @@ int main(int arg_c, char** arg_v)
    
    // Now create a Resampler instance for each component to process. The first instance will create new contributor tables, which are shared by the resamplers 
    // used for the other components (a memory and slight cache efficiency optimization).
-   resamplers[0] = new Resampler(src_width, src_height, dst_width, dst_height, Resampler::BOUNDARY_CLAMP, 0.0f, 1.0f, pFilter, NULL, NULL, filter_scale, filter_scale);
+   resamplers[0] = new Resampler(src_width, src_height, dst_width, dst_height, Resampler::BOUNDARY_CLAMP, 0.0f, 1.0f, pFilter, NULL, NULL, filter_scale, filter_scale, 0.0f, 0.0f, subrect_x, subrect_y, subrect_w, subrect_h );
    samples[0].resize(src_width);
    for (int i = 1; i < n; i++)
    {
-      resamplers[i] = new Resampler(src_width, src_height, dst_width, dst_height, Resampler::BOUNDARY_CLAMP, 0.0f, 1.0f, pFilter, resamplers[0]->get_clist_x(), resamplers[0]->get_clist_y(), filter_scale, filter_scale);
+      resamplers[i] = new Resampler(src_width, src_height, dst_width, dst_height, Resampler::BOUNDARY_CLAMP, 0.0f, 1.0f, pFilter, resamplers[0]->get_clist_x(), resamplers[0]->get_clist_y(), filter_scale, filter_scale, 0.0f, 0.0f, subrect_x, subrect_y, subrect_w, subrect_h );
       samples[i].resize(src_width);
    }      
       
-   std::vector<unsigned char> dst_image(dst_width * n * dst_height);
+   std::vector<unsigned char> dst_image( subrect_w * n * subrect_h );
    
    const int src_pitch = src_width * n;
-   const int dst_pitch = dst_width * n;
+   const int dst_pitch = subrect_w * n;
    int dst_y = 0;
    
    printf("Resampling to %ux%u\n", dst_width, dst_height);
@@ -136,7 +152,7 @@ int main(int arg_c, char** arg_v)
             assert(dst_y < dst_height);
             unsigned char* pDst = &dst_image[dst_y * dst_pitch + comp_index];
             
-            for (int x = 0; x < dst_width; x++)
+            for (int x = 0; x < subrect_w; x++)
             {
                if (alpha_channel)
                {
@@ -163,7 +179,7 @@ int main(int arg_c, char** arg_v)
    
    printf("Writing TGA file: %s\n", pDst_filename);
    
-   if (!stbi_write_tga(pDst_filename, dst_width, dst_height, n, &dst_image[0]))
+   if (!stbi_write_tga(pDst_filename, subrect_w, subrect_h, n, &dst_image[0]))
    {
       printf("Failed writing output image!\n");
       return EXIT_FAILURE;
