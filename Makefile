@@ -8,3 +8,6 @@ bin/resampler: $(OBJECTS_CPP)
 
 $(OBJECT_DIR)/%.o : %.cpp
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
+
+clean:
+	rm -f bin/resampler $(OBJECT_DIR)/*.o
