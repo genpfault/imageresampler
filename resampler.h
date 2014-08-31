@@ -53,8 +53,8 @@ public:
     // src_x_ofs/src_y_ofs - Offset input image by specified amount (fractional values okay)
     Resampler
         (
-        int src_w, int src_h,
-        int dst_w, int dst_h,
+        unsigned int src_w, unsigned int src_h,
+        unsigned int dst_w, unsigned int dst_h,
         Boundary_Op boundary_op = BOUNDARY_CLAMP,
         Resample_Real sample_low = 0.0f,
         Resample_Real sample_high = 0.0f,
@@ -82,25 +82,25 @@ public:
     Contrib_List* get_clist_y() const { return &m_Pclistc_y.get()->clists[ 0 ]; }
 
     // Filter accessors.
-    static int get_filter_num();
-    static char* get_filter_name(int filter_num);
+    static unsigned int get_filter_num();
+    static char* get_filter_name(unsigned int filter_num);
 
 private:
     Resampler();
     Resampler(const Resampler& o);
     Resampler& operator= (const Resampler& o);
 
-    int m_intermediate_x;
+    unsigned int m_intermediate_x;
 
-    int m_resample_src_w;
-    int m_resample_src_h;
-    int m_resample_dst_w;
-    int m_resample_dst_h;
+    unsigned int m_resample_src_w;
+    unsigned int m_resample_src_h;
+    unsigned int m_resample_dst_w;
+    unsigned int m_resample_dst_h;
    
-    int m_dst_subrect_beg_x;
-    int m_dst_subrect_end_x;
-    int m_dst_subrect_beg_y;
-    int m_dst_subrect_end_y;
+    unsigned int m_dst_subrect_beg_x;
+    unsigned int m_dst_subrect_end_x;
+    unsigned int m_dst_subrect_beg_y;
+    unsigned int m_dst_subrect_end_y;
 
     Boundary_Op m_boundary_op;
 
@@ -134,22 +134,22 @@ private:
 
     std::auto_ptr< Scan_Buf > m_Pscan_buf;
 
-    int m_cur_src_y;
-    int m_cur_dst_y;
+    unsigned int m_cur_src_y;
+    unsigned int m_cur_dst_y;
 
     Status m_status;
 
     void resample_x(Sample* Pdst, const Sample* Psrc);
-    static void scale_y_mov(Sample* Ptmp, const Sample* Psrc, Resample_Real weight, int dst_w);
-    static void scale_y_add(Sample* Ptmp, const Sample* Psrc, Resample_Real weight, int dst_w);
-    static void clamp(Sample* Pdst, int n, Resample_Real lo, Resample_Real hi);
+    static void scale_y_mov(Sample* Ptmp, const Sample* Psrc, Resample_Real weight, unsigned int dst_w);
+    static void scale_y_add(Sample* Ptmp, const Sample* Psrc, Resample_Real weight, unsigned int dst_w);
+    static void clamp(Sample* Pdst, unsigned int n, Resample_Real lo, Resample_Real hi);
     void resample_y(Sample* Pdst);
 
     static int reflect(const int j, const int src_w, const Boundary_Op boundary_op);
 
     static std::auto_ptr< Contrib_List_Container > make_clist
         (
-        int src_w, int dst_w,
+        unsigned int src_w, unsigned int dst_w,
         Boundary_Op boundary_op,
         Resample_Real (*Pfilter)(Resample_Real),
         Resample_Real filter_support,
@@ -157,12 +157,12 @@ private:
         Resample_Real src_ofs
         );
 
-    static inline int count_ops(Contrib_List* Pclist, int k)
+    static inline unsigned int count_ops(Contrib_List* Pclist, unsigned int k)
     {
-        int i, t = 0;
-        for (i = 0; i < k; i++)
+        unsigned int t = 0;
+        for( unsigned int i = 0; i < k; ++i )
             t += Pclist[i].n;
-        return (t);
+        return t;
     }
 
     Resample_Real m_lo;
