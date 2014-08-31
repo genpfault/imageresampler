@@ -407,7 +407,7 @@ int Resampler::reflect( const int j, const int src_w, const Boundary_Op boundary
 
 // The make_clist() method generates, for all destination samples,
 // the list of all source samples with non-zero weighted contributions.
-Resampler::Contrib_List* Resampler::make_clist
+std::auto_ptr< Resampler::Contrib_List_Container > Resampler::make_clist
     (
     int src_w, int dst_w,
     Boundary_Op boundary_op,
@@ -423,19 +423,12 @@ Resampler::Contrib_List* Resampler::make_clist
         Resample_Real center;
         int left, right;
     };
+    std::vector< Contrib_Bounds > Pcontrib_bounds( dst_w, Contrib_Bounds() );
 
-    Contrib_List* Pcontrib = ( Contrib_List* ) calloc( dst_w, sizeof ( Contrib_List ) );
-    if( !Pcontrib )
-    {
-        return NULL;
-    }
+    std::auto_ptr< Contrib_List_Container > clcont( new Contrib_List_Container );
 
-    Contrib_Bounds* Pcontrib_bounds = ( Contrib_Bounds* ) calloc( dst_w, sizeof ( Contrib_Bounds ) );
-    if( !Pcontrib_bounds )
-    {
-        free( Pcontrib );
-        return ( NULL );
-    }
+    clcont->clists.resize( dst_w );
+    Contrib_List* Pcontrib = &clcont->clists[ 0 ];
 
     const Resample_Real oo_filter_scale = 1.0f / filter_scale;
 
@@ -467,13 +460,12 @@ Resampler::Contrib_List* Resampler::make_clist
     }
 
     // Allocate memory for contributors.
-    Contrib* Pcpool;
     int total = n;
-    if( ( total == 0 ) || ( ( Pcpool = ( Contrib* ) calloc( total, sizeof ( Contrib ) ) ) == NULL ) )
+    clcont->cpool.resize( total );
+    Contrib* Pcpool = &clcont->cpool[ 0 ];
+    if( total == 0 )
     {
-        free( Pcontrib );
-        free( Pcontrib_bounds );
-        return NULL;
+        return std::auto_ptr< Resampler::Contrib_List_Container >();
     }
 
     Contrib* Pcpool_next = Pcpool;
@@ -534,19 +526,14 @@ Resampler::Contrib_List* Resampler::make_clist
 
         if( ( max_k == -1 ) || ( Pcontrib[ i ].n == 0 ) )
         {
-            free( Pcpool );
-            free( Pcontrib );
-            free( Pcontrib_bounds );
-            return NULL;
+            return std::auto_ptr< Resampler::Contrib_List_Container >();
         }
 
         if( total_weight != 1.0f )
             Pcontrib[ i ].p[ max_k ].weight += 1.0f - total_weight;
     }
 
-    free( Pcontrib_bounds );
-
-    return Pcontrib;
+    return clcont;
 }
 
 void Resampler::resample_x( Sample* Pdst, const Sample* Psrc )
@@ -597,7 +584,7 @@ void Resampler::resample_y( Sample* Pdst )
 {
     Contrib_List* Pclist = &m_Pclist_y[ m_cur_dst_y ];
 
-    Sample* Ptmp = m_delay_x_resample ? m_Ptmp_buf : Pdst;
+    Sample* Ptmp = m_delay_x_resample ? &m_Ptmp_buf[ 0 ] : Pdst;
     assert( Ptmp );
 
     // Process each contributor.
@@ -613,7 +600,7 @@ void Resampler::resample_y( Sample* Pdst )
 
         assert( j < MAX_SCAN_BUF_SIZE );
 
-        Sample* Psrc = m_Pscan_buf->scan_buf_l[ j ];
+        Sample* Psrc = &m_Pscan_buf->scan_buf_l[ j ][ 0 ];
 
         if( !i )
             scale_y_mov( Ptmp, Psrc, Pclist->p[ i ].weight, m_intermediate_x );
@@ -681,13 +668,9 @@ bool Resampler::put_line( const Sample* Psrc )
 
     // Does this slot have any memory allocated to it?
 
-    if( !m_Pscan_buf->scan_buf_l[ i ] )
+    if( m_Pscan_buf->scan_buf_l[ i ].empty() )
     {
-        if( ( m_Pscan_buf->scan_buf_l[ i ] = ( Sample* ) malloc( m_intermediate_x * sizeof ( Sample ) ) ) == NULL )
-        {
-            m_status = STATUS_OUT_OF_MEMORY;
-            return false;
-        }
+        m_Pscan_buf->scan_buf_l[ i ].resize( m_intermediate_x );
     }
 
     // Resampling on the X axis first?
@@ -696,14 +679,14 @@ bool Resampler::put_line( const Sample* Psrc )
         assert( m_intermediate_x == m_resample_src_w );
 
         // Y-X resampling order
-        memcpy( m_Pscan_buf->scan_buf_l[ i ], Psrc, m_intermediate_x * sizeof ( Sample ) );
+        std::copy( Psrc, Psrc + m_intermediate_x, m_Pscan_buf->scan_buf_l[ i ].begin() );
     }
     else
     {
         assert( m_intermediate_x == ( m_dst_subrect_end_x - m_dst_subrect_beg_x ) );
 
         // X-Y resampling order
-        resample_x( m_Pscan_buf->scan_buf_l[ i ], Psrc );
+        resample_x( &m_Pscan_buf->scan_buf_l[ i ][ 0 ], Psrc );
     }
 
     m_cur_src_y++;
@@ -722,55 +705,11 @@ const Resampler::Sample* Resampler::get_line()
         if( !m_Psrc_y_flag[ resampler_range_check( m_Pclist_y[ m_cur_dst_y ].p[ i ].pixel, m_resample_src_h ) ] )
             return NULL;
 
-    resample_y( m_Pdst_buf );
+    resample_y( &m_Pdst_buf[ 0 ] );
 
     m_cur_dst_y++;
 
-    return m_Pdst_buf;
-}
-
-Resampler::~Resampler()
-{
-    free( m_Pdst_buf );
-    m_Pdst_buf = NULL;
-
-    if( m_Ptmp_buf )
-    {
-        free( m_Ptmp_buf );
-        m_Ptmp_buf = NULL;
-    }
-
-    // Don't deallocate a contibutor list
-    // if the user passed us one of their own.
-
-    if( ( m_Pclist_x ) && ( !m_clist_x_forced ) )
-    {
-        free( m_Pclist_x->p );
-        free( m_Pclist_x );
-        m_Pclist_x = NULL;
-    }
-
-    if( ( m_Pclist_y ) && ( !m_clist_y_forced ) )
-    {
-        free( m_Pclist_y->p );
-        free( m_Pclist_y );
-        m_Pclist_y = NULL;
-    }
-
-    free( m_Psrc_y_count );
-    m_Psrc_y_count = NULL;
-
-    free( m_Psrc_y_flag );
-    m_Psrc_y_flag = NULL;
-
-    if( m_Pscan_buf )
-    {
-        for( int i = 0; i < MAX_SCAN_BUF_SIZE; i++ )
-            free( m_Pscan_buf->scan_buf_l[ i ] );
-
-        free( m_Pscan_buf );
-        m_Pscan_buf = NULL;
-    }
+    return &m_Pdst_buf[ 0 ];
 }
 
 Resampler::Resampler
@@ -788,7 +727,8 @@ Resampler::Resampler
     Resample_Real src_x_ofs,
     Resample_Real src_y_ofs,
     unsigned int dst_subrect_x, unsigned int dst_subrect_y,
-    unsigned int dst_subrect_w, unsigned int dst_subrect_h)
+    unsigned int dst_subrect_w, unsigned int dst_subrect_h
+    )
 {
     assert( src_w > 0 );
     assert( src_h > 0 );
@@ -800,15 +740,8 @@ Resampler::Resampler
 
     m_delay_x_resample = false;
     m_intermediate_x = 0;
-    m_Pdst_buf = NULL;
-    m_Ptmp_buf = NULL;
-    m_clist_x_forced = false;
     m_Pclist_x = NULL;
-    m_clist_y_forced = false;
     m_Pclist_y = NULL;
-    m_Psrc_y_count = NULL;
-    m_Psrc_y_flag = NULL;
-    m_Pscan_buf = NULL;
     m_status = STATUS_OKAY;
 
     m_resample_src_w = src_w;
@@ -835,11 +768,7 @@ Resampler::Resampler
 
     m_boundary_op = boundary_op;
 
-    if( ( m_Pdst_buf = (Sample*)malloc( ( m_dst_subrect_end_x - m_dst_subrect_beg_x ) * sizeof( Sample ) ) ) == NULL )
-    {
-        m_status = STATUS_OUT_OF_MEMORY;
-        return;
-    }
+    m_Pdst_buf.resize( m_dst_subrect_end_x - m_dst_subrect_beg_x );
 
     // Find the specified filter.
     if( Pfilter_name == NULL )
@@ -868,61 +797,48 @@ Resampler::Resampler
 
     if( !Pclist_x )
     {
-        m_Pclist_x = make_clist( m_resample_src_w, m_resample_dst_w, m_boundary_op, func, support, filter_x_scale, src_x_ofs );
-        if( !m_Pclist_x )
+        m_Pclistc_x = make_clist( m_resample_src_w, m_resample_dst_w, m_boundary_op, func, support, filter_x_scale, src_x_ofs );
+        if( NULL == m_Pclistc_x.get() )
         {
             m_status = STATUS_OUT_OF_MEMORY;
             return;
         }
+        m_Pclist_x = &m_Pclistc_x->clists[ 0 ];
     }
     else
     {
         m_Pclist_x = Pclist_x;
-        m_clist_x_forced = true;
     }
 
     if( !Pclist_y )
     {
-        m_Pclist_y = make_clist( m_resample_src_h, m_resample_dst_h, m_boundary_op, func, support, filter_y_scale, src_y_ofs );
-        if( !m_Pclist_y )
+        m_Pclistc_y = make_clist( m_resample_src_h, m_resample_dst_h, m_boundary_op, func, support, filter_y_scale, src_y_ofs );
+        if( NULL == m_Pclistc_y.get() )
         {
             m_status = STATUS_OUT_OF_MEMORY;
             return;
         }
+        m_Pclist_y = &m_Pclistc_y->clists[ 0 ];
     }
     else
     {
         m_Pclist_y = Pclist_y;
-        m_clist_y_forced = true;
     }
 
-    if( ( m_Psrc_y_count = ( int* ) calloc( m_resample_src_h, sizeof ( int ) ) ) == NULL )
-    {
-        m_status = STATUS_OUT_OF_MEMORY;
-        return;
-    }
+    m_Psrc_y_count.resize( m_resample_src_h, 0 );
 
-    if( ( m_Psrc_y_flag = ( bool* ) calloc( m_resample_src_h, sizeof ( bool ) ) ) == NULL )
-    {
-        m_status = STATUS_OUT_OF_MEMORY;
-        return;
-    }
+    m_Psrc_y_flag.resize( m_resample_src_h );
 
     // Count how many times each source line contributes to a destination line.
     for( int i = 0; i < m_resample_dst_h; i++ )
         for( int j = 0; j < m_Pclist_y[ i ].n; j++ )
             m_Psrc_y_count[ resampler_range_check( m_Pclist_y[ i ].p[ j ].pixel, m_resample_src_h ) ]++;
 
-    if( ( m_Pscan_buf = ( Scan_Buf* ) malloc( sizeof ( Scan_Buf ) ) ) == NULL )
-    {
-        m_status = STATUS_OUT_OF_MEMORY;
-        return;
-    }
+    m_Pscan_buf.reset( new Scan_Buf );
 
     for( int i = 0; i < MAX_SCAN_BUF_SIZE; i++ )
     {
         m_Pscan_buf->scan_buf_y[ i ] = -1;
-        m_Pscan_buf->scan_buf_l[ i ] = NULL;
     }
 
     m_cur_src_y = 0;
@@ -959,11 +875,7 @@ Resampler::Resampler
 
     if( m_delay_x_resample )
     {
-        if( ( m_Ptmp_buf = ( Sample* ) malloc( m_intermediate_x * sizeof ( Sample ) ) ) == NULL )
-        {
-            m_status = STATUS_OUT_OF_MEMORY;
-            return;
-        }
+        m_Ptmp_buf.resize( m_intermediate_x );
     }
 }
 

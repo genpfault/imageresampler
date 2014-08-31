@@ -3,6 +3,9 @@
 #ifndef RESAMPLER_H
 #define RESAMPLER_H
 
+#include <vector>
+#include <memory>
+
 #define RESAMPLER_DEFAULT_FILTER "lanczos4"
 
 #define RESAMPLER_MAX_DIMENSION 16384
@@ -66,8 +69,6 @@ public:
         unsigned int dst_subrect_w = 0, unsigned int dst_subrect_h = 0
 		);
 
-    ~Resampler();
-
     // false on out of memory.
     bool put_line(const Sample* Psrc);
 
@@ -77,8 +78,8 @@ public:
     Status status() const { return m_status; }
 
     // Returned contributor lists can be shared with another Resampler.
-    Contrib_List* get_clist_x() const { return m_Pclist_x; }
-    Contrib_List* get_clist_y() const { return m_Pclist_y; }
+    Contrib_List* get_clist_x() const { return &m_Pclistc_x.get()->clists[ 0 ]; }
+    Contrib_List* get_clist_y() const { return &m_Pclistc_y.get()->clists[ 0 ]; }
 
     // Filter accessors.
     static int get_filter_num();
@@ -103,19 +104,24 @@ private:
 
     Boundary_Op m_boundary_op;
 
-    Sample* m_Pdst_buf;
-    Sample* m_Ptmp_buf;
+    std::vector< Sample > m_Pdst_buf;
+    std::vector< Sample > m_Ptmp_buf;
+
+    struct Contrib_List_Container
+    {
+        std::vector< Contrib > cpool;
+        std::vector< Contrib_List > clists;
+    };
+    std::auto_ptr< Contrib_List_Container > m_Pclistc_x;
+    std::auto_ptr< Contrib_List_Container > m_Pclistc_y;
 
     Contrib_List* m_Pclist_x;
     Contrib_List* m_Pclist_y;
 
-    bool m_clist_x_forced;
-    bool m_clist_y_forced;
-
     bool m_delay_x_resample;
 
-    int* m_Psrc_y_count;
-    bool* m_Psrc_y_flag;
+    std::vector< int > m_Psrc_y_count;
+    std::vector< bool > m_Psrc_y_flag;
 
     // The maximum number of scanlines that can be buffered at one time.
     enum { MAX_SCAN_BUF_SIZE = RESAMPLER_MAX_DIMENSION };
@@ -123,10 +129,10 @@ private:
     struct Scan_Buf
     {
         int scan_buf_y[MAX_SCAN_BUF_SIZE];
-        Sample* scan_buf_l[MAX_SCAN_BUF_SIZE];
+        std::vector< Sample > scan_buf_l[MAX_SCAN_BUF_SIZE];
     };
 
-    Scan_Buf* m_Pscan_buf;
+    std::auto_ptr< Scan_Buf > m_Pscan_buf;
 
     int m_cur_src_y;
     int m_cur_dst_y;
@@ -141,7 +147,7 @@ private:
 
     static int reflect(const int j, const int src_w, const Boundary_Op boundary_op);
 
-    static Contrib_List* make_clist
+    static std::auto_ptr< Contrib_List_Container > make_clist
         (
         int src_w, int dst_w,
         Boundary_Op boundary_op,
