@@ -32,7 +32,7 @@ int main(int arg_c, char** arg_v)
    const int subrect_w = arg_c == 9 ? atoi( arg_v[7] ) : dst_width;
    const int subrect_h = arg_c == 9 ? atoi( arg_v[8] ) : dst_height;
    
-   if ((std::min(dst_width, dst_height) < 1) || (std::max(dst_width, dst_height) > RESAMPLER_MAX_DIMENSION))
+   if (std::min(dst_width, dst_height) < 1)
    {
       printf("Invalid output width/height!\n");
       return EXIT_FAILURE;
@@ -63,9 +63,9 @@ int main(int arg_c, char** arg_v)
    
    const int max_components = 4;   
    
-   if ((std::max(src_width, src_height) > RESAMPLER_MAX_DIMENSION) || (n > max_components))
+   if (n > max_components)
    {
-      printf("Image is too large!\n");
+      printf("Image has too many components!\n");
       return EXIT_FAILURE;
    }
       
