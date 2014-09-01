@@ -15,13 +15,6 @@
 #include <cstring>
 #include "resampler.h"
 
-static inline int resampler_range_check( unsigned int v, unsigned int h )
-{
-    ( void ) h;
-    assert( ( v >= 0 ) && ( v < h ) );
-    return v;
-}
-
 #define M_PI 3.14159265358979323846
 
 // (x mod y) with special handling for negative x values.
@@ -606,9 +599,9 @@ void Resampler::resample_y( Sample* Pdst )
         // which holds this source line as free.
         // (The max. number of slots used depends on the Y
         //  axis sampling factor and the scaled filter width.)
-        if( --m_Psrc_y_count[ resampler_range_check( Pclist->p[ i ].pixel, m_resample_src_h ) ] == 0 )
+        if( --m_Psrc_y_count[ Pclist->p[ i ].pixel ] == 0 )
         {
-            m_Psrc_y_flag[ resampler_range_check( Pclist->p[ i ].pixel, m_resample_src_h ) ] = false;
+            m_Psrc_y_flag[ Pclist->p[ i ].pixel ] = false;
             m_Pscan_buf.erase( Pclist->p[ i ].pixel );
         }
     }
@@ -636,14 +629,14 @@ bool Resampler::put_line( const Sample* Psrc )
         return false;
 
     // Does this source line contribute to any destination line?  if not, exit now.
-    if( !m_Psrc_y_count[ resampler_range_check( m_cur_src_y, m_resample_src_h ) ] )
+    if( !m_Psrc_y_count[ m_cur_src_y ] )
     {
         m_cur_src_y++;
         return true;
     }
 
     // Find an empty slot in the scanline buffer.
-    m_Psrc_y_flag[ resampler_range_check( m_cur_src_y, m_resample_src_h ) ] = true;
+    m_Psrc_y_flag[ m_cur_src_y ] = true;
     std::vector< Sample >& scan_buf = m_Pscan_buf[ m_cur_src_y ];
     scan_buf.resize( m_intermediate_x );
 
@@ -676,7 +669,7 @@ const Resampler::Sample* Resampler::get_line()
 
     // Check to see if all the required contributors are present, if not, return NULL.
     for( unsigned int i = 0; i < m_Pclist_y[ m_cur_dst_y ].n; i++ )
-        if( !m_Psrc_y_flag[ resampler_range_check( m_Pclist_y[ m_cur_dst_y ].p[ i ].pixel, m_resample_src_h ) ] )
+        if( !m_Psrc_y_flag[ m_Pclist_y[ m_cur_dst_y ].p[ i ].pixel ] )
             return NULL;
 
     resample_y( &m_Pdst_buf[ 0 ] );
@@ -801,7 +794,7 @@ Resampler::Resampler
     // Count how many times each source line contributes to a destination line.
     for( unsigned int i = 0; i < m_resample_dst_h; i++ )
         for( unsigned int j = 0; j < m_Pclist_y[ i ].n; j++ )
-            m_Psrc_y_count[ resampler_range_check( m_Pclist_y[ i ].p[ j ].pixel, m_resample_src_h ) ]++;
+            m_Psrc_y_count[ m_Pclist_y[ i ].p[ j ].pixel ]++;
 
     m_cur_src_y = 0;
     m_cur_dst_y = m_dst_subrect_beg_y;
