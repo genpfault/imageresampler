@@ -96,16 +96,17 @@ int main(int arg_c, char** arg_v)
       linear_to_srgb[i] = (unsigned char)k;
    }
    
+   Resampler::ContribLists* clists = new Resampler::ContribLists( src_width, src_height, dst_width, dst_height, pFilter, filter_scale, filter_scale, Resampler::BOUNDARY_CLAMP, 0.0f, 0.0f );
+
    Resampler* resamplers[max_components];
    std::vector<float> samples[max_components];
-   
+
    // Now create a Resampler instance for each component to process. The first instance will create new contributor tables, which are shared by the resamplers 
    // used for the other components (a memory and slight cache efficiency optimization).
-   resamplers[0] = new Resampler(src_width, src_height, dst_width, dst_height, Resampler::BOUNDARY_CLAMP, 0.0f, 1.0f, pFilter, NULL, NULL, filter_scale, filter_scale, 0.0f, 0.0f, subrect_x, subrect_y, subrect_w, subrect_h );
-   samples[0].resize(src_width);
-   for (int i = 1; i < n; i++)
+   for (int i = 0; i < n; i++)
    {
-      resamplers[i] = new Resampler(src_width, src_height, dst_width, dst_height, Resampler::BOUNDARY_CLAMP, 0.0f, 1.0f, pFilter, resamplers[0]->get_clist_x(), resamplers[0]->get_clist_y(), filter_scale, filter_scale, 0.0f, 0.0f, subrect_x, subrect_y, subrect_w, subrect_h );
+      resamplers[i] = new Resampler( *clists, 0.0f, 1.0f );
+      resamplers[i]->StartResample( subrect_x, subrect_y, subrect_w, subrect_h );
       samples[i].resize(src_width);
    }      
       
@@ -134,11 +135,7 @@ int main(int arg_c, char** arg_v)
       
       for (int c = 0; c < n; c++)         
       {
-         if (!resamplers[c]->put_line(&samples[c][0]))
-         {
-            printf("Out of memory!\n");
-            return EXIT_FAILURE;
-         }
+         resamplers[c]->PutLine(&samples[c][0]);
       }         
          
       for ( ; ; )
@@ -146,7 +143,7 @@ int main(int arg_c, char** arg_v)
          int comp_index;
          for (comp_index = 0; comp_index < n; comp_index++)
          {
-            const float* pOutput_samples = resamplers[comp_index]->get_line();
+            const float* pOutput_samples = resamplers[comp_index]->GetLine();
             if (!pOutput_samples)
                break;
             
@@ -192,6 +189,7 @@ int main(int arg_c, char** arg_v)
    // Delete the resamplers.
    for (int i = 0; i < n; i++)
       delete resamplers[i];
+   delete clists;
    
    return EXIT_SUCCESS;
 }

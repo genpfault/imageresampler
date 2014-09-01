@@ -15,8 +15,6 @@ typedef float Resample_Real;
 class Resampler
 {
 public:
-    typedef Resample_Real Sample;
-
     struct Contrib
     {
         Resample_Real weight;
@@ -36,136 +34,116 @@ public:
         BOUNDARY_CLAMP = 2
     };
 
-    enum Status
+    // Filter accessors.
+    static unsigned int GetFilterCount();
+    static const char* GetFilterName( unsigned int filter_num );
+
+    class ContribLists
     {
-        STATUS_OKAY = 0,
-        STATUS_OUT_OF_MEMORY = 1,
-        STATUS_BAD_FILTER_NAME = 2,
-        STATUS_SCAN_BUFFER_FULL = 3
+    public:
+        // src_w/src_h - Input dimensions
+        // dst_w/dst_h - Output dimensions
+        // boundary_op - How to sample pixels near the image boundaries
+        // src_x_ofs/src_y_ofs - Offset input image by specified amount (fractional values okay)
+        ContribLists
+            (
+            unsigned int src_w,
+            unsigned int src_h,
+            unsigned int dst_w,
+            unsigned int dst_h,
+            const char* Pfilter_name = RESAMPLER_DEFAULT_FILTER,
+            Resample_Real filter_x_scale = 1.0f,
+            Resample_Real filter_y_scale = 1.0f,
+            Boundary_Op boundary_op = BOUNDARY_CLAMP,
+            Resample_Real src_x_ofs = 0.0f,
+            Resample_Real src_y_ofs = 0.0f
+            );
+
+        unsigned int GetSrcW() const { return m_Pclistc_x.srcDim; }
+        unsigned int GetSrcH() const { return m_Pclistc_y.srcDim; }
+        unsigned int GetDstW() const { return m_Pclistc_x.clists.size(); }
+        unsigned int GetDstH() const { return m_Pclistc_y.clists.size(); }
+
+        const Contrib_List* GetClistX() const { return &m_Pclistc_x.clists[ 0 ]; }
+        const Contrib_List* GetClistY() const { return &m_Pclistc_y.clists[ 0 ]; }
+
+    private:
+        ContribLists();
+        ContribLists( const ContribLists& );
+        ContribLists& operator=( const ContribLists& );
+
+        struct Contrib_List_Container
+        {
+            unsigned int srcDim;
+            std::vector< Contrib > cpool;
+            std::vector< Contrib_List > clists;
+        };
+        Contrib_List_Container m_Pclistc_x;
+        Contrib_List_Container m_Pclistc_y;
     };
 
-    // src_w/src_h - Input dimensions
-    // dst_w/dst_h - Output dimensions
-    // boundary_op - How to sample pixels near the image boundaries
-    // sample_low/sample_high - Clamp output samples to specified range, or disable clamping if sample_low >= sample_high
+    typedef Resample_Real Sample;
+
     // Pclist_x/Pclist_y - Optional pointers to contributor lists from another instance of a Resampler
-    // src_x_ofs/src_y_ofs - Offset input image by specified amount (fractional values okay)
+    // sample_low/sample_high - Clamp output samples to specified range, or disable clamping if sample_low >= sample_high
     Resampler
         (
-        unsigned int src_w, unsigned int src_h,
-        unsigned int dst_w, unsigned int dst_h,
-        Boundary_Op boundary_op = BOUNDARY_CLAMP,
+        const ContribLists& contribLists,
         Resample_Real sample_low = 0.0f,
-        Resample_Real sample_high = 0.0f,
-        const char* Pfilter_name = RESAMPLER_DEFAULT_FILTER,
-        Contrib_List* Pclist_x = NULL,
-        Contrib_List* Pclist_y = NULL,
-        Resample_Real filter_x_scale = 1.0f,
-        Resample_Real filter_y_scale = 1.0f,
-        Resample_Real src_x_ofs = 0.0f,
-        Resample_Real src_y_ofs = 0.0f,
-        unsigned int dst_subrect_x = 0, unsigned int dst_subrect_y = 0,
-        unsigned int dst_subrect_w = 0, unsigned int dst_subrect_h = 0
+        Resample_Real sample_high = 0.0f
 		);
 
-    // false on out of memory.
-    bool put_line(const Sample* Psrc);
+    bool StartResample
+        (
+        unsigned int dst_subrect_x = 0,
+        unsigned int dst_subrect_y = 0,
+        unsigned int dst_subrect_w = 0,
+        unsigned int dst_subrect_h = 0
+        );
+
+    void PutLine( const Sample* Psrc );
 
     // NULL if no scanlines are currently available (give the resampler more scanlines!)
-    const Sample* get_line();
-
-    Status status() const { return m_status; }
-
-    // Returned contributor lists can be shared with another Resampler.
-    Contrib_List* get_clist_x() const { return &m_Pclistc_x.get()->clists[ 0 ]; }
-    Contrib_List* get_clist_y() const { return &m_Pclistc_y.get()->clists[ 0 ]; }
-
-    // Filter accessors.
-    static unsigned int get_filter_num();
-    static const char* get_filter_name(unsigned int filter_num);
+    const Sample* GetLine();
 
 private:
     Resampler();
-    Resampler(const Resampler& o);
-    Resampler& operator= (const Resampler& o);
+    Resampler( const Resampler& );
+    Resampler& operator=( const Resampler& );
+
+    void resample_x( Sample* Pdst, const Sample* Psrc );
+    void resample_y( Sample* Pdst );
 
     unsigned int m_intermediate_x;
 
-    unsigned int m_resample_src_w;
-    unsigned int m_resample_src_h;
-    unsigned int m_resample_dst_w;
-    unsigned int m_resample_dst_h;
+    const unsigned int m_resample_src_w;
+    const unsigned int m_resample_src_h;
+    const unsigned int m_resample_dst_w;
+    const unsigned int m_resample_dst_h;
    
     unsigned int m_dst_subrect_beg_x;
     unsigned int m_dst_subrect_end_x;
     unsigned int m_dst_subrect_beg_y;
     unsigned int m_dst_subrect_end_y;
 
-    Boundary_Op m_boundary_op;
-
     std::vector< Sample > m_Pdst_buf;
     std::vector< Sample > m_Ptmp_buf;
 
-    struct Contrib_List_Container
-    {
-        std::vector< Contrib > cpool;
-        std::vector< Contrib_List > clists;
-    };
-    std::auto_ptr< Contrib_List_Container > m_Pclistc_x;
-    std::auto_ptr< Contrib_List_Container > m_Pclistc_y;
-
-    Contrib_List* m_Pclist_x;
-    Contrib_List* m_Pclist_y;
+    const Contrib_List* m_Pclist_x;
+    const Contrib_List* m_Pclist_y;
 
     bool m_delay_x_resample;
 
     std::vector< int > m_Psrc_y_count;
-    std::vector< bool > m_Psrc_y_flag;
 
+    std::vector< bool > m_Psrc_y_flag;
     std::map< int, std::vector< Sample > > m_Pscan_buf;
 
     unsigned int m_cur_src_y;
     unsigned int m_cur_dst_y;
 
-    Status m_status;
-
-    void resample_x(Sample* Pdst, const Sample* Psrc);
-    static void scale_y_mov(Sample* Ptmp, const Sample* Psrc, Resample_Real weight, unsigned int dst_w);
-    static void scale_y_add(Sample* Ptmp, const Sample* Psrc, Resample_Real weight, unsigned int dst_w);
-    static void clamp(Sample* Pdst, unsigned int n, Resample_Real lo, Resample_Real hi);
-    void resample_y(Sample* Pdst);
-
-    static int reflect(const int j, const int src_w, const Boundary_Op boundary_op);
-
-    static std::auto_ptr< Contrib_List_Container > make_clist
-        (
-        unsigned int src_w, unsigned int dst_w,
-        Boundary_Op boundary_op,
-        Resample_Real (*Pfilter)(Resample_Real),
-        Resample_Real filter_support,
-        Resample_Real filter_scale,
-        Resample_Real src_ofs
-        );
-
-    static inline unsigned int count_ops(Contrib_List* Pclist, unsigned int k)
-    {
-        unsigned int t = 0;
-        for( unsigned int i = 0; i < k; ++i )
-            t += Pclist[i].n;
-        return t;
-    }
-
     Resample_Real m_lo;
     Resample_Real m_hi;
-
-    static inline Resample_Real clamp_sample(Resample_Real f, Resample_Real lo, Resample_Real hi)
-    {
-        if (f < lo)
-            f = lo;
-        else if (f > hi)
-            f = hi;
-        return f;
-    }
 };
 
 #endif // RESAMPLER_H

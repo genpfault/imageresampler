@@ -358,36 +358,49 @@ static const struct
 
 static const unsigned int NUM_FILTERS = sizeof ( g_filters ) / sizeof ( g_filters[ 0 ] );
 
+unsigned int Resampler::GetFilterCount()
+{
+    return NUM_FILTERS;
+}
+
+const char* Resampler::GetFilterName( unsigned int filter_num )
+{
+    if( ( filter_num < 0 ) || ( filter_num >= NUM_FILTERS ) )
+        return NULL;
+    else
+        return g_filters[ filter_num ].name;
+}
+
 // Ensure that the contributing source sample is
 // within bounds. If not, reflect, clamp, or wrap.
-int Resampler::reflect( const int j, const int src_w, const Boundary_Op boundary_op )
+int reflect( const int j, const int src_w, const Resampler::Boundary_Op boundary_op )
 {
     int n;
 
     if( j < 0 )
     {
-        if( boundary_op == BOUNDARY_REFLECT )
+        if( boundary_op == Resampler::BOUNDARY_REFLECT )
         {
             n = -j;
 
             if( n >= src_w )
                 n = src_w - 1;
         }
-        else if( boundary_op == BOUNDARY_WRAP )
+        else if( boundary_op == Resampler::BOUNDARY_WRAP )
             n = posmod( j, src_w );
         else
             n = 0;
     }
     else if( j >= src_w )
     {
-        if( boundary_op == BOUNDARY_REFLECT )
+        if( boundary_op == Resampler::BOUNDARY_REFLECT )
         {
             n = ( src_w - j ) + ( src_w - 1 );
 
             if( n < 0 )
                 n = 0;
         }
-        else if( boundary_op == BOUNDARY_WRAP )
+        else if( boundary_op == Resampler::BOUNDARY_WRAP )
             n = posmod( j, src_w );
         else
             n = src_w - 1;
@@ -407,10 +420,12 @@ struct Contrib_Bounds
 
 // The make_clist() method generates, for all destination samples,
 // the list of all source samples with non-zero weighted contributions.
-std::auto_ptr< Resampler::Contrib_List_Container > Resampler::make_clist
+bool make_clist
     (
+    std::vector< Resampler::Contrib >& cpool,
+    std::vector< Resampler::Contrib_List >& clists,
     unsigned int src_w, unsigned int dst_w,
-    Boundary_Op boundary_op,
+    Resampler::Boundary_Op boundary_op,
     Resample_Real ( *Pfilter )( Resample_Real ),
     Resample_Real filter_support,
     Resample_Real filter_scale,
@@ -419,10 +434,8 @@ std::auto_ptr< Resampler::Contrib_List_Container > Resampler::make_clist
 {
     std::vector< Contrib_Bounds > Pcontrib_bounds( dst_w, Contrib_Bounds() );
 
-    std::auto_ptr< Contrib_List_Container > clcont( new Contrib_List_Container );
-
-    clcont->clists.resize( dst_w );
-    Contrib_List* Pcontrib = &clcont->clists[ 0 ];
+    clists.resize( dst_w );
+    Resampler::Contrib_List* Pcontrib = &clists[ 0 ];
 
     const Resample_Real oo_filter_scale = 1.0f / filter_scale;
 
@@ -455,14 +468,14 @@ std::auto_ptr< Resampler::Contrib_List_Container > Resampler::make_clist
 
     // Allocate memory for contributors.
     int total = n;
-    clcont->cpool.resize( total );
-    Contrib* Pcpool = &clcont->cpool[ 0 ];
+    cpool.resize( total );
+    Resampler::Contrib* Pcpool = &cpool[ 0 ];
     if( total == 0 )
     {
-        return std::auto_ptr< Resampler::Contrib_List_Container >();
+        return false;
     }
 
-    Contrib* Pcpool_next = Pcpool;
+    Resampler::Contrib* Pcpool_next = Pcpool;
 
     // Create the list of source samples which contribute to each destination sample.
     for( unsigned int i = 0; i < dst_w; i++ )
@@ -520,14 +533,172 @@ std::auto_ptr< Resampler::Contrib_List_Container > Resampler::make_clist
 
         if( ( max_k == -1 ) || ( Pcontrib[ i ].n == 0 ) )
         {
-            return std::auto_ptr< Resampler::Contrib_List_Container >();
+            return false;
         }
 
         if( total_weight != 1.0f )
             Pcontrib[ i ].p[ max_k ].weight += 1.0f - total_weight;
     }
 
-    return clcont;
+    return true;
+}
+
+Resampler::ContribLists::ContribLists
+    (
+    unsigned int src_w,
+    unsigned int src_h,
+    unsigned int dst_w,
+    unsigned int dst_h,
+    const char* Pfilter_name,
+    Resample_Real filter_x_scale,
+    Resample_Real filter_y_scale,
+    Boundary_Op boundary_op,
+    Resample_Real src_x_ofs,
+    Resample_Real src_y_ofs
+    )
+{
+    // Find the specified filter.
+    if( Pfilter_name == NULL )
+        Pfilter_name = RESAMPLER_DEFAULT_FILTER;
+
+    Resample_Real support, ( *func )( Resample_Real );
+    {
+        unsigned int i;
+        for( i = 0; i < NUM_FILTERS; i++ )
+        {
+            if( strcmp( Pfilter_name, g_filters[ i ].name ) == 0 )
+                break;
+        }
+
+        if( i == NUM_FILTERS )
+        {
+            throw std::runtime_error( "unknown filter name!" );
+        }
+
+        func = g_filters[ i ].func;
+        support = g_filters[ i ].support;
+    }
+
+    m_Pclistc_x.srcDim = src_w;
+    m_Pclistc_y.srcDim = src_h;
+    if( !make_clist( m_Pclistc_x.cpool, m_Pclistc_x.clists, src_w, dst_w, boundary_op, func, support, filter_x_scale, src_x_ofs ) )
+    {
+        throw std::runtime_error( "failed to create x-axis clist!" );
+    }
+    
+    if( !make_clist( m_Pclistc_y.cpool, m_Pclistc_y.clists, src_h, dst_h, boundary_op, func, support, filter_y_scale, src_y_ofs ) )
+    {
+        throw std::runtime_error( "failed to create y-axis clist!" );
+    }
+}
+
+static inline unsigned int count_ops( const Resampler::Contrib_List* Pclist, unsigned int k )
+{
+    unsigned int t = 0;
+    for( unsigned int i = 0; i < k; ++i )
+        t += Pclist[i].n;
+    return t;
+}
+
+Resampler::Resampler
+    (
+    const ContribLists& contribLists,
+    Resample_Real sample_low,
+    Resample_Real sample_high
+    )
+    : m_resample_src_w( contribLists.GetSrcW() )
+    , m_resample_src_h( contribLists.GetSrcH() )
+    , m_resample_dst_w( contribLists.GetDstW() )
+    , m_resample_dst_h( contribLists.GetDstH() )
+    , m_Pclist_x( contribLists.GetClistX() )
+    , m_Pclist_y( contribLists.GetClistY() )
+    , m_lo( sample_low )
+    , m_hi( sample_high )
+    , m_delay_x_resample( false )
+    , m_intermediate_x( 0 )
+{
+    m_Psrc_y_count.resize( m_resample_src_h, 0 );
+
+    m_Psrc_y_flag.resize( m_resample_src_h );
+
+    // Count how many times each source line contributes to a destination line.
+    for( unsigned int i = 0; i < m_resample_dst_h; i++ )
+        for( unsigned int j = 0; j < m_Pclist_y[ i ].n; j++ )
+            m_Psrc_y_count[ m_Pclist_y[ i ].p[ j ].pixel ]++;
+
+    // Determine which axis to resample first by comparing the 
+    // number of multiplies required for each possibility.
+    {
+        unsigned int x_ops = count_ops( m_Pclist_x, m_resample_dst_w );
+        unsigned int y_ops = count_ops( m_Pclist_y, m_resample_dst_h );
+
+        // Hack 10/2000: Weight Y axis ops a little more than X axis ops.
+        // (Y axis ops use more cache resources.)
+        unsigned int xy_ops = x_ops * m_resample_src_h +
+                              ( 4 * y_ops * m_resample_dst_w ) / 3;
+
+        unsigned int yx_ops = ( 4 * y_ops * m_resample_src_w ) / 3 +
+                              x_ops * m_resample_dst_h;
+
+        // Now check which resample order is better. In case of a tie, choose the order
+        // which buffers the least amount of data.
+        if( ( xy_ops > yx_ops ) ||
+            ( ( xy_ops == yx_ops ) && ( m_resample_src_w < m_resample_dst_w ) )
+            )
+        {
+            m_delay_x_resample = true;
+        }
+        else
+        {
+            m_delay_x_resample = false;
+        }
+    }
+}
+
+bool Resampler::StartResample
+    (
+    unsigned int dst_subrect_x,
+    unsigned int dst_subrect_y,
+    unsigned int dst_subrect_w,
+    unsigned int dst_subrect_h
+    )
+{
+    std::fill( m_Psrc_y_flag.begin(), m_Psrc_y_flag.end(), false );
+    m_Pscan_buf.clear();
+
+    // assume we're outputting everything by default...
+    m_dst_subrect_beg_x = 0;
+    m_dst_subrect_end_x = m_resample_dst_w;
+    m_dst_subrect_beg_y = 0;
+    m_dst_subrect_end_y = m_resample_dst_h;
+
+    // ...or maybe we have a valid dst subrect
+    if( dst_subrect_w > 0 && dst_subrect_h > 0 &&
+        dst_subrect_x + dst_subrect_w <= m_resample_dst_w &&
+        dst_subrect_y + dst_subrect_h <= m_resample_dst_h )
+    {
+        m_dst_subrect_beg_x = dst_subrect_x;
+        m_dst_subrect_end_x = dst_subrect_x + dst_subrect_w;
+        m_dst_subrect_beg_y = dst_subrect_y;
+        m_dst_subrect_end_y = dst_subrect_y + dst_subrect_h;
+    }
+
+    m_Pdst_buf.resize( m_dst_subrect_end_x - m_dst_subrect_beg_x );
+
+    m_cur_src_y = 0;
+    m_cur_dst_y = m_dst_subrect_beg_y;
+
+    if( m_delay_x_resample )
+    {
+        m_intermediate_x = m_resample_src_w;
+        m_Ptmp_buf.resize( m_intermediate_x );
+    }
+    else
+    {
+        m_intermediate_x = ( m_dst_subrect_end_x - m_dst_subrect_beg_x );
+    }
+
+    return true;
 }
 
 void Resampler::resample_x( Sample* Pdst, const Sample* Psrc )
@@ -535,7 +706,7 @@ void Resampler::resample_x( Sample* Pdst, const Sample* Psrc )
     assert( Pdst );
     assert( Psrc );
 
-    Contrib_List *Pclist = m_Pclist_x + m_dst_subrect_beg_x;
+    const Contrib_List *Pclist = m_Pclist_x + m_dst_subrect_beg_x;
 
     for( unsigned i = m_dst_subrect_beg_x; i < m_dst_subrect_end_x; i++, Pclist++ )
     {
@@ -550,20 +721,65 @@ void Resampler::resample_x( Sample* Pdst, const Sample* Psrc )
     }
 }
 
-void Resampler::scale_y_mov( Sample* Ptmp, const Sample* Psrc, Resample_Real weight, unsigned int dst_w )
+void Resampler::PutLine( const Sample* Psrc )
+{
+    if( m_cur_src_y >= m_resample_src_h )
+        return;
+
+    // Does this source line contribute to any destination line?  if not, exit now.
+    if( !m_Psrc_y_count[ m_cur_src_y ] )
+    {
+        m_cur_src_y++;
+        return;
+    }
+
+    // Find an empty slot in the scanline buffer.
+    m_Psrc_y_flag[ m_cur_src_y ] = true;
+    std::vector< Sample >& scan_buf = m_Pscan_buf[ m_cur_src_y ];
+    scan_buf.resize( m_intermediate_x );
+
+    // Resampling on the X axis first?
+    if( m_delay_x_resample )
+    {
+        assert( m_intermediate_x == m_resample_src_w );
+
+        // Y-X resampling order
+        std::copy( Psrc, Psrc + m_intermediate_x, scan_buf.begin() );
+    }
+    else
+    {
+        assert( m_intermediate_x == ( m_dst_subrect_end_x - m_dst_subrect_beg_x ) );
+
+        // X-Y resampling order
+        resample_x( &scan_buf[ 0 ], Psrc );
+    }
+
+    m_cur_src_y++;
+}
+
+static inline void scale_y_mov( Resampler::Sample* Ptmp, const Resampler::Sample* Psrc, Resample_Real weight, unsigned int dst_w )
 {
     // Not += because temp buf wasn't cleared.
     for( unsigned int i = 0; i < dst_w; i++ )
         *Ptmp++ = *Psrc++ *weight;
 }
 
-void Resampler::scale_y_add( Sample* Ptmp, const Sample* Psrc, Resample_Real weight, unsigned int dst_w )
+static inline void scale_y_add( Resampler::Sample* Ptmp, const Resampler::Sample* Psrc, Resample_Real weight, unsigned int dst_w )
 {
     for( unsigned int i = 0; i < dst_w; i++ )
         ( *Ptmp++ ) += *Psrc++ *weight;
 }
 
-void Resampler::clamp( Sample* Pdst, unsigned int n, Resample_Real lo, Resample_Real hi )
+static inline Resample_Real clamp_sample( Resample_Real f, Resample_Real lo, Resample_Real hi )
+{
+    if (f < lo)
+        f = lo;
+    else if (f > hi)
+        f = hi;
+    return f;
+}
+
+static inline void clamp( Resampler::Sample* Pdst, unsigned int n, Resample_Real lo, Resample_Real hi )
 {
     for( unsigned int i = 0; i < n; ++i )
     {
@@ -574,7 +790,7 @@ void Resampler::clamp( Sample* Pdst, unsigned int n, Resample_Real lo, Resample_
 
 void Resampler::resample_y( Sample* Pdst )
 {
-    Contrib_List* Pclist = &m_Pclist_y[ m_cur_dst_y ];
+    const Contrib_List* Pclist = &m_Pclist_y[ m_cur_dst_y ];
 
     Sample* Ptmp = m_delay_x_resample ? &m_Ptmp_buf[ 0 ] : Pdst;
     assert( Ptmp );
@@ -623,48 +839,10 @@ void Resampler::resample_y( Sample* Pdst )
         clamp( Pdst, ( m_dst_subrect_end_x - m_dst_subrect_beg_x ), m_lo, m_hi );
 }
 
-bool Resampler::put_line( const Sample* Psrc )
-{
-    if( m_cur_src_y >= m_resample_src_h )
-        return false;
-
-    // Does this source line contribute to any destination line?  if not, exit now.
-    if( !m_Psrc_y_count[ m_cur_src_y ] )
-    {
-        m_cur_src_y++;
-        return true;
-    }
-
-    // Find an empty slot in the scanline buffer.
-    m_Psrc_y_flag[ m_cur_src_y ] = true;
-    std::vector< Sample >& scan_buf = m_Pscan_buf[ m_cur_src_y ];
-    scan_buf.resize( m_intermediate_x );
-
-    // Resampling on the X axis first?
-    if( m_delay_x_resample )
-    {
-        assert( m_intermediate_x == m_resample_src_w );
-
-        // Y-X resampling order
-        std::copy( Psrc, Psrc + m_intermediate_x, scan_buf.begin() );
-    }
-    else
-    {
-        assert( m_intermediate_x == ( m_dst_subrect_end_x - m_dst_subrect_beg_x ) );
-
-        // X-Y resampling order
-        resample_x( &scan_buf[ 0 ], Psrc );
-    }
-
-    m_cur_src_y++;
-
-    return true;
-}
-
-const Resampler::Sample* Resampler::get_line()
+const Resampler::Sample* Resampler::GetLine()
 {
     // If all the destination lines have been generated, then always return NULL.
-    if (m_cur_dst_y == m_dst_subrect_end_y)
+    if( m_cur_dst_y == m_dst_subrect_end_y )
         return NULL;
 
     // Check to see if all the required contributors are present, if not, return NULL.
@@ -677,172 +855,4 @@ const Resampler::Sample* Resampler::get_line()
     m_cur_dst_y++;
 
     return &m_Pdst_buf[ 0 ];
-}
-
-Resampler::Resampler
-    (
-    unsigned int src_w, unsigned int src_h,
-    unsigned int dst_w, unsigned int dst_h,
-    Boundary_Op boundary_op,
-    Resample_Real sample_low,
-    Resample_Real sample_high,
-    const char* Pfilter_name,
-    Contrib_List* Pclist_x,
-    Contrib_List* Pclist_y,
-    Resample_Real filter_x_scale,
-    Resample_Real filter_y_scale,
-    Resample_Real src_x_ofs,
-    Resample_Real src_y_ofs,
-    unsigned int dst_subrect_x, unsigned int dst_subrect_y,
-    unsigned int dst_subrect_w, unsigned int dst_subrect_h
-    )
-{
-    m_lo = sample_low;
-    m_hi = sample_high;
-
-    m_delay_x_resample = false;
-    m_intermediate_x = 0;
-    m_Pclist_x = NULL;
-    m_Pclist_y = NULL;
-    m_status = STATUS_OKAY;
-
-    m_resample_src_w = src_w;
-    m_resample_src_h = src_h;
-    m_resample_dst_w = dst_w;
-    m_resample_dst_h = dst_h;
-
-    // assume we're outputting everything by default...
-    m_dst_subrect_beg_x = 0;
-    m_dst_subrect_end_x = dst_w;
-    m_dst_subrect_beg_y = 0;
-    m_dst_subrect_end_y = dst_h;
-
-    // ...or maybe we have a valid dst subrect
-    if( dst_subrect_w > 0 && dst_subrect_h > 0 &&
-        dst_subrect_x + dst_subrect_w <= dst_w &&
-        dst_subrect_y + dst_subrect_h <= dst_h )
-    {
-        m_dst_subrect_beg_x = dst_subrect_x;
-        m_dst_subrect_end_x = dst_subrect_x + dst_subrect_w;
-        m_dst_subrect_beg_y = dst_subrect_y;
-        m_dst_subrect_end_y = dst_subrect_y + dst_subrect_h;
-    }
-
-    m_boundary_op = boundary_op;
-
-    m_Pdst_buf.resize( m_dst_subrect_end_x - m_dst_subrect_beg_x );
-
-    // Find the specified filter.
-    if( Pfilter_name == NULL )
-        Pfilter_name = RESAMPLER_DEFAULT_FILTER;
-
-    Resample_Real support, ( *func )( Resample_Real );
-    {
-        unsigned int i;
-        for( i = 0; i < NUM_FILTERS; i++ )
-        {
-            if( strcmp( Pfilter_name, g_filters[ i ].name ) == 0 )
-                break;
-        }
-
-        if( i == NUM_FILTERS )
-        {
-            m_status = STATUS_BAD_FILTER_NAME;
-            return;
-        }
-
-        func = g_filters[ i ].func;
-        support = g_filters[ i ].support;
-    }
-
-    // Create contributor lists, unless the user supplied custom lists.
-
-    if( !Pclist_x )
-    {
-        m_Pclistc_x = make_clist( m_resample_src_w, m_resample_dst_w, m_boundary_op, func, support, filter_x_scale, src_x_ofs );
-        if( NULL == m_Pclistc_x.get() )
-        {
-            m_status = STATUS_OUT_OF_MEMORY;
-            return;
-        }
-        m_Pclist_x = &m_Pclistc_x->clists[ 0 ];
-    }
-    else
-    {
-        m_Pclist_x = Pclist_x;
-    }
-
-    if( !Pclist_y )
-    {
-        m_Pclistc_y = make_clist( m_resample_src_h, m_resample_dst_h, m_boundary_op, func, support, filter_y_scale, src_y_ofs );
-        if( NULL == m_Pclistc_y.get() )
-        {
-            m_status = STATUS_OUT_OF_MEMORY;
-            return;
-        }
-        m_Pclist_y = &m_Pclistc_y->clists[ 0 ];
-    }
-    else
-    {
-        m_Pclist_y = Pclist_y;
-    }
-
-    m_Psrc_y_count.resize( m_resample_src_h, 0 );
-
-    m_Psrc_y_flag.resize( m_resample_src_h );
-
-    // Count how many times each source line contributes to a destination line.
-    for( unsigned int i = 0; i < m_resample_dst_h; i++ )
-        for( unsigned int j = 0; j < m_Pclist_y[ i ].n; j++ )
-            m_Psrc_y_count[ m_Pclist_y[ i ].p[ j ].pixel ]++;
-
-    m_cur_src_y = 0;
-    m_cur_dst_y = m_dst_subrect_beg_y;
-    {
-        // Determine which axis to resample first by comparing the number of multiplies required
-        // for each possibility.
-        unsigned int x_ops = count_ops( m_Pclist_x, m_resample_dst_w );
-        unsigned int y_ops = count_ops( m_Pclist_y, m_resample_dst_h );
-
-        // Hack 10/2000: Weight Y axis ops a little more than X axis ops.
-        // (Y axis ops use more cache resources.)
-        unsigned int xy_ops = x_ops * m_resample_src_h +
-                              ( 4 * y_ops * m_resample_dst_w ) / 3;
-
-        unsigned int yx_ops = ( 4 * y_ops * m_resample_src_w ) / 3 +
-                              x_ops * m_resample_dst_h;
-
-        // Now check which resample order is better. In case of a tie, choose the order
-        // which buffers the least amount of data.
-        if( ( xy_ops > yx_ops ) ||
-            ( ( xy_ops == yx_ops ) && ( m_resample_src_w < m_resample_dst_w ) )
-            )
-        {
-            m_delay_x_resample = true;
-            m_intermediate_x = m_resample_src_w;
-        }
-        else
-        {
-            m_delay_x_resample = false;
-            m_intermediate_x = ( m_dst_subrect_end_x - m_dst_subrect_beg_x );
-        }
-    }
-
-    if( m_delay_x_resample )
-    {
-        m_Ptmp_buf.resize( m_intermediate_x );
-    }
-}
-
-unsigned int Resampler::get_filter_num()
-{
-    return NUM_FILTERS;
-}
-
-const char* Resampler::get_filter_name( unsigned int filter_num )
-{
-    if( ( filter_num < 0 ) || ( filter_num >= NUM_FILTERS ) )
-        return NULL;
-    else
-        return g_filters[ filter_num ].name;
 }
