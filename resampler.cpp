@@ -405,6 +405,13 @@ int Resampler::reflect( const int j, const int src_w, const Boundary_Op boundary
     return n;
 }
 
+struct Contrib_Bounds
+{
+    // The center of the range in DISCRETE coordinates (pixel center = 0.0f).
+    Resample_Real center;
+    int left, right;
+};
+
 // The make_clist() method generates, for all destination samples,
 // the list of all source samples with non-zero weighted contributions.
 std::auto_ptr< Resampler::Contrib_List_Container > Resampler::make_clist
@@ -417,12 +424,6 @@ std::auto_ptr< Resampler::Contrib_List_Container > Resampler::make_clist
     Resample_Real src_ofs
     )
 {
-    struct Contrib_Bounds
-    {
-        // The center of the range in DISCRETE coordinates (pixel center = 0.0f).
-        Resample_Real center;
-        int left, right;
-    };
     std::vector< Contrib_Bounds > Pcontrib_bounds( dst_w, Contrib_Bounds() );
 
     std::auto_ptr< Contrib_List_Container > clcont( new Contrib_List_Container );
