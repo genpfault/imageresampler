@@ -617,14 +617,14 @@ Resampler::Resampler
     , m_delay_x_resample( false )
     , m_intermediate_x( 0 )
 {
-    m_Psrc_y_count.resize( m_resample_src_h, 0 );
+    m_Psrc_y_count_reference.resize( m_resample_src_h, 0 );
 
     m_Psrc_y_flag.resize( m_resample_src_h );
 
     // Count how many times each source line contributes to a destination line.
     for( unsigned int i = 0; i < m_resample_dst_h; i++ )
         for( unsigned int j = 0; j < m_Pclist_y[ i ].n; j++ )
-            m_Psrc_y_count[ m_Pclist_y[ i ].p[ j ].pixel ]++;
+            m_Psrc_y_count_reference[ m_Pclist_y[ i ].p[ j ].pixel ]++;
 
     // Determine which axis to resample first by comparing the 
     // number of multiplies required for each possibility.
@@ -665,6 +665,8 @@ bool Resampler::StartResample
 {
     std::fill( m_Psrc_y_flag.begin(), m_Psrc_y_flag.end(), false );
     m_Pscan_buf.clear();
+
+    m_Psrc_y_count = m_Psrc_y_count_reference;
 
     // assume we're outputting everything by default...
     m_dst_subrect_beg_x = 0;

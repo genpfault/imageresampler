@@ -134,6 +134,7 @@ private:
 
     bool m_delay_x_resample;
 
+    std::vector< int > m_Psrc_y_count_reference;
     std::vector< int > m_Psrc_y_count;
 
     std::vector< bool > m_Psrc_y_flag;
