@@ -606,16 +606,16 @@ Resampler::Resampler
     Resample_Real sample_low,
     Resample_Real sample_high
     )
-    : m_resample_src_w( contribLists.GetSrcW() )
+    : m_intermediate_x( 0 )
+    , m_resample_src_w( contribLists.GetSrcW() )
     , m_resample_src_h( contribLists.GetSrcH() )
     , m_resample_dst_w( contribLists.GetDstW() )
     , m_resample_dst_h( contribLists.GetDstH() )
     , m_Pclist_x( contribLists.GetClistX() )
     , m_Pclist_y( contribLists.GetClistY() )
+    , m_delay_x_resample( false )
     , m_lo( sample_low )
     , m_hi( sample_high )
-    , m_delay_x_resample( false )
-    , m_intermediate_x( 0 )
 {
     m_Psrc_y_count_reference.resize( m_resample_src_h, 0 );
 
