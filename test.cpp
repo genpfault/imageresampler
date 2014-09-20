@@ -111,7 +111,8 @@ int main(int arg_c, char** arg_v)
    }      
       
    std::vector<unsigned char> dst_image( subrect_w * n * subrect_h );
-   
+   std::vector<float> pOutput_samples( subrect_w );
+
    const int src_pitch = src_width * n;
    const int dst_pitch = subrect_w * n;
    int dst_y = 0;
@@ -143,9 +144,10 @@ int main(int arg_c, char** arg_v)
          int comp_index;
          for (comp_index = 0; comp_index < n; comp_index++)
          {
-            const float* pOutput_samples = resamplers[comp_index]->GetLine();
-            if (!pOutput_samples)
-               break;
+            if( !resamplers[comp_index]->GetLine( &pOutput_samples[0] ) )
+            {
+               continue;
+            }
             
             const bool alpha_channel = (comp_index == 3) || ((n == 2) && (comp_index == 1));
             assert(dst_y < dst_height);

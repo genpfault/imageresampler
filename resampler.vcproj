@@ -186,9 +186,13 @@
 				>
 			</File>
 			<File
-				RelativePath=".\stb_image.c"
+				RelativePath=".\stb_image.h"
 				>
 			</File>
+			<File
+				RelativePath=".\stb_image_write.h"
+				>
+			</File>			
 			<File
 				RelativePath=".\test.cpp"
 				>

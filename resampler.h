@@ -103,8 +103,8 @@ public:
 
     void PutLine( const Sample* Psrc );
 
-    // NULL if no scanlines are currently available (give the resampler more scanlines!)
-    const Sample* GetLine();
+    // false if no scanlines are currently available (give the resampler more scanlines!)
+    bool GetLine( Sample* Pdst );
 
 private:
     Resampler();
@@ -126,7 +126,6 @@ private:
     unsigned int m_dst_subrect_beg_y;
     unsigned int m_dst_subrect_end_y;
 
-    std::vector< Sample > m_Pdst_buf;
     std::vector< Sample > m_Ptmp_buf;
 
     const Contrib_List* m_Pclist_x;

@@ -686,8 +686,6 @@ bool Resampler::StartResample
         m_dst_subrect_end_y = dst_subrect_y + dst_subrect_h;
     }
 
-    m_Pdst_buf.resize( m_dst_subrect_end_x - m_dst_subrect_beg_x );
-
     m_cur_src_y = 0;
     m_cur_dst_y = m_dst_subrect_beg_y;
 
@@ -793,10 +791,17 @@ static inline void clamp( Resampler::Sample* Pdst, unsigned int n, Resample_Real
 
 void Resampler::resample_y( Sample* Pdst )
 {
+    // if false, only run the memory management portions
+    const bool shouldResample = ( m_cur_dst_y < m_dst_subrect_end_y );
+
     const Contrib_List* Pclist = &m_Pclist_y[ m_cur_dst_y ];
 
-    Sample* Ptmp = m_delay_x_resample ? &m_Ptmp_buf[ 0 ] : Pdst;
-    assert( Ptmp );
+    Sample* Ptmp = NULL;
+    if( shouldResample )
+    {
+        Ptmp = m_delay_x_resample ? &m_Ptmp_buf[ 0 ] : Pdst;
+        assert( Ptmp );
+    }
 
     // Process each contributor.
     for( int i = 0; i < Pclist->n; i++ )
@@ -804,14 +809,17 @@ void Resampler::resample_y( Sample* Pdst )
         // locate the contributor's location in the scan
         // buffer -- the contributor must always be found!
 
-        std::vector< Sample >& scan_buf = m_Pscan_buf[ Pclist->p[ i ].pixel ];
-        assert( !scan_buf.empty() );
-        Sample* Psrc = &scan_buf[ 0 ];
+        if( shouldResample )
+        {
+            std::vector< Sample >& scan_buf = m_Pscan_buf[ Pclist->p[ i ].pixel ];
+            assert( !scan_buf.empty() );
+            Sample* Psrc = &scan_buf[ 0 ];
 
-        if( !i )
-            scale_y_mov( Ptmp, Psrc, Pclist->p[ i ].weight, m_intermediate_x );
-        else
-            scale_y_add( Ptmp, Psrc, Pclist->p[ i ].weight, m_intermediate_x );
+            if( !i )
+                scale_y_mov( Ptmp, Psrc, Pclist->p[ i ].weight, m_intermediate_x );
+            else
+                scale_y_add( Ptmp, Psrc, Pclist->p[ i ].weight, m_intermediate_x );
+        }
 
         // If this source line doesn't contribute to any
         // more destination lines then mark the scanline buffer slot
@@ -827,35 +835,37 @@ void Resampler::resample_y( Sample* Pdst )
 
     // Now generate the destination line
 
-    // Was X resampling delayed until after Y resampling?
-    if( m_delay_x_resample )
+    if( shouldResample )
     {
-        assert( Pdst != Ptmp );
-        resample_x( Pdst, Ptmp );
-    }
-    else
-    {
-        assert( Pdst == Ptmp );
-    }
+        // Was X resampling delayed until after Y resampling?
+        if( m_delay_x_resample )
+        {
+            assert( Pdst != Ptmp );
+            resample_x( Pdst, Ptmp );
+        }
+        else
+        {
+            assert( Pdst == Ptmp );
+        }
 
-    if( m_lo < m_hi )
-        clamp( Pdst, ( m_dst_subrect_end_x - m_dst_subrect_beg_x ), m_lo, m_hi );
+        if( m_lo < m_hi )
+            clamp( Pdst, ( m_dst_subrect_end_x - m_dst_subrect_beg_x ), m_lo, m_hi );
+    }
 }
 
-const Resampler::Sample* Resampler::GetLine()
+bool Resampler::GetLine( Sample* Pdst )
 {
-    // If all the destination lines have been generated, then always return NULL.
-    if( m_cur_dst_y == m_dst_subrect_end_y )
-        return NULL;
+    // If all the destination lines have been generated, then always return false.
+    if( m_cur_dst_y == m_resample_dst_h )
+        return false;
 
-    // Check to see if all the required contributors are present, if not, return NULL.
+    // Check to see if all the required contributors are present, if not, return false.
     for( unsigned int i = 0; i < m_Pclist_y[ m_cur_dst_y ].n; i++ )
         if( !m_Psrc_y_flag[ m_Pclist_y[ m_cur_dst_y ].p[ i ].pixel ] )
-            return NULL;
+            return false;
 
-    resample_y( &m_Pdst_buf[ 0 ] );
+    resample_y( Pdst );
 
     m_cur_dst_y++;
-
-    return &m_Pdst_buf[ 0 ];
+    return true;
 }
